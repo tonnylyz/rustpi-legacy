@@ -1,5 +1,5 @@
 use core::fmt;
-
+use crate::uart::uart_putc;
 pub struct Writer {
 
 }
@@ -10,10 +10,10 @@ impl Writer {
     pub fn write_byte(&mut self, byte: u8) {
         match byte {
             b'\n' => {
-				putc(b'\r');
-				putc(b'\n');
+                uart_putc(b'\r');
+                uart_putc(b'\n');
 			}
-            byte => putc(byte)
+            byte => { uart_putc(byte) }
         }
     }
 
@@ -29,23 +29,6 @@ impl fmt::Write for Writer {
         self.write_string(s);
         Ok(())
     }
-}
-
-extern {
-	fn nop();
-}
-
-fn safe_nop() {
-	unsafe {
-		nop();
-	}
-}
-
-pub fn putc(c: u8) {
-	while (super::mmio::mmio_read(0x3f201018) & 0x20) != 0 {
-		safe_nop();
-	}
-	super::mmio::mmio_writeb(0x3f201000, c);
 }
 
 pub fn print_arg(args: fmt::Arguments) {

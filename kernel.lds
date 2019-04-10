@@ -5,13 +5,13 @@ SECTIONS
         start.o
         *(.text*)
     }
+    .data : {
+        *(.data*)
+    }
     .bss : {
         *(.bss*)
     }
     .rodata : {
         *(.rodata*)
-    }
-    .data : {
-        *(.data*)
     }
 }

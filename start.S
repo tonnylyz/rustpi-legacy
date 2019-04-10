@@ -12,7 +12,7 @@ _start_master:
     bl main
     b 1b
 
-.global nop
-nop:
+.global nop_dummy
+nop_dummy:
 	nop
 	ret

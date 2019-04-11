@@ -1,0 +1,15 @@
+[package]
+name = "rustpi"
+version = "0.1.0"
+build = "build.rs"
+
+[[bin]]
+name = "rustpi"
+path = "src/main.rs"
+
+[package.metadata.cargo-xbuild]
+memcpy = true
+sysroot_path = "target/sysroot"
+
+
+

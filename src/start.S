@@ -1,3 +1,4 @@
+.sect .text.start
 .global _start
 _start:
     mrs x0, mpidr_el1

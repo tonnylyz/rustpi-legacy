@@ -2,7 +2,7 @@ SECTIONS
 {
     . = 0x00080000;
     .text : {
-        start.o
+        *(.text.start)
         *(.text*)
     }
     .data : {

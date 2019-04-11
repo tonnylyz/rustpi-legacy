@@ -53,7 +53,7 @@ pub fn uart_init() -> () {
     mmio_write(AUX_MU_CNTL_REG, 3);
 }
 
-pub fn uart_putc(c: u8) {
+fn uart_send(c: u8) {
     loop {
         if (mmio_read(AUX_MU_LSR_REG) & 0x20) != 0 {
             break;
@@ -61,4 +61,11 @@ pub fn uart_putc(c: u8) {
         unsafe { nop_dummy(); }
     }
     mmio_write(AUX_MU_IO_REG, c as u32);
+}
+
+pub fn uart_putc(c: u8) {
+    if c == b'\n' {
+        uart_send(b'\r');
+    }
+    uart_send(c);
 }

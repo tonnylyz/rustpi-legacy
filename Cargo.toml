@@ -12,4 +12,5 @@ memcpy = true
 sysroot_path = "target/sysroot"
 
 
-
+[dependencies]
+cortex-a = "2.9.0"

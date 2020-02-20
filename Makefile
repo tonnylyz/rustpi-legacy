@@ -1,21 +1,14 @@
-.PHONY: all clean cargo
+PATH := $(HOME)/.cargo/bin:/usr/local/x86_64_aarch64-elf/bin:$(PATH)
 
-all: cargo kernel8.img
+.PHONY: all clean kernel
+
+all: kernel kernel8.img
 
 clean:
 	cargo clean
 
-cargo:
+kernel:
 	cargo xbuild --target aarch64-none-elf.json --release --verbose
 
-kernel8.img: cargo
+kernel8.img: kernel
 	aarch64-elf-objcopy target/aarch64-none-elf/release/rustpi -O binary kernel8.img
-
-# My sdcard script
-win:
-	sudo mount -t drvfs e: /mnt/e
-	cp kernel8.img /mnt/e/kernel8.img
-	sync
-	sleep 1
-	sudo umount /mnt/e
-	RemoveDrive.exe e: -L

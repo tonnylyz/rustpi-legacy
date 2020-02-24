@@ -1,18 +1,18 @@
 use super::mmio::{mmio_read, mmio_write};
 
-const GPFSEL1: usize = 0xFFFFFF803F200004;
-const GPPUD: usize = 0xFFFFFF803F200094;
-const GPPUDCLK0: usize = 0xFFFFFF803F200098;
+const GPFSEL1: usize = 0x3F200004;
+const GPPUD: usize = 0x3F200094;
+const GPPUDCLK0: usize = 0x3F200098;
 
-const AUX_ENABLES: usize = 0xFFFFFF803F215004;
-const AUX_MU_IO_REG: usize = 0xFFFFFF803F215040;
-const AUX_MU_IER_REG: usize = 0xFFFFFF803F215044;
-const AUX_MU_IIR_REG: usize = 0xFFFFFF803F215048;
-const AUX_MU_LCR_REG: usize = 0xFFFFFF803F21504C;
-const AUX_MU_MCR_REG: usize = 0xFFFFFF803F215050;
-const AUX_MU_LSR_REG: usize = 0xFFFFFF803F215054;
-const AUX_MU_CNTL_REG: usize = 0xFFFFFF803F215060;
-const AUX_MU_BAUD_REG: usize = 0xFFFFFF803F215068;
+const AUX_ENABLES: usize = 0x3F215004;
+const AUX_MU_IO_REG: usize = 0x3F215040;
+const AUX_MU_IER_REG: usize = 0x3F215044;
+const AUX_MU_IIR_REG: usize = 0x3F215048;
+const AUX_MU_LCR_REG: usize = 0x3F21504C;
+const AUX_MU_MCR_REG: usize = 0x3F215050;
+const AUX_MU_LSR_REG: usize = 0x3F215054;
+const AUX_MU_CNTL_REG: usize = 0x3F215060;
+const AUX_MU_BAUD_REG: usize = 0x3F215068;
 
 fn clock_delay(n: u32) -> () {
   for _ in 0..n {

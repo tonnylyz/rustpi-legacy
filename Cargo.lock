@@ -3,8 +3,7 @@
 [[package]]
 name = "cortex-a"
 version = "2.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fd807a12241940332c7c9f6aeaf3f7539d4213853d32445d17c97f3e7eebe118"
+source = "git+https://github.com/tonnylyz/cortex-a#c532472796bf22224f29362cef8d548a67b5109c"
 dependencies = [
  "register",
 ]
@@ -23,6 +22,7 @@ name = "rustpi"
 version = "0.1.0"
 dependencies = [
  "cortex-a",
+ "register",
 ]
 
 [[package]]

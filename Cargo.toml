@@ -1,7 +1,6 @@
 [package]
 name = "rustpi"
 version = "0.1.0"
-build = "build.rs"
 
 [[bin]]
 name = "rustpi"
@@ -13,4 +12,5 @@ sysroot_path = "target/sysroot"
 
 
 [dependencies]
-cortex-a = "2.9.0"
+cortex-a = { git = "https://github.com/tonnylyz/cortex-a"}
+register = "0.5.0"

@@ -3,7 +3,7 @@
 **What is working:**
 * Bootstrap (written in assembly and C)
 * UART
-* Kernel Virtual Memory (code compiled from Rust run at **low** address space, from https://github.com/rust-embedded/rust-raspi3-OS-tutorials/tree/master/11_virtual_memory)
+* Kernel Virtual Memory (code compiled from Rust run at **high** address space, from https://github.com/rust-embedded/rust-raspi3-OS-tutorials/tree/master/11_virtual_memory)
 * Kernel interrupt and exception handling (from https://github.com/rust-embedded/rust-raspi3-OS-tutorials/tree/master/12_cpu_exceptions_part1)
 
 **Todo:**

@@ -1,133 +1,112 @@
-// SPDX-License-Identifier: MIT OR Apache-2.0
-//
-// Copyright (c) 2018-2020 Andre Richter <andre.o.richter@gmail.com>
+.equ KERNEL_STACK_TOP, 0xFFFFFF8000080000
+.equ TRAP_FRAME_SIZE, 280
 
-/// Call the function provided by parameter `\handler` after saving exception context. Provide the
-/// context as the first parameter to '\handler'.
-.macro CALL_WITH_CONTEXT handler
-    // Make room on the stack for the exception context.
-    sub    sp,  sp,  #16 * 17
+.macro VECTOR handler
+    str x0, [sp, #-16]!
+    ldr x0, =TRAP_FRAME
+    add x0, x0, TRAP_FRAME_SIZE
+    stp x29, x30, [x0, #-16]!
+    stp x27, x28, [x0, #-16]!
+    stp x25, x26, [x0, #-16]!
+    stp x23, x24, [x0, #-16]!
+    stp x21, x22, [x0, #-16]!
+    stp x19, x20, [x0, #-16]!
+    stp x17, x18, [x0, #-16]!
+    stp x15, x16, [x0, #-16]!
+    stp x13, x14, [x0, #-16]!
+    stp x11, x12, [x0, #-16]!
+    stp x9, x10, [x0, #-16]!
+    stp x7, x8, [x0, #-16]!
+    stp x5, x6, [x0, #-16]!
+    stp x3, x4, [x0, #-16]!
+    stp x1, x2, [x0, #-16]!
+    mov x21, x0
+    ldr x0, [sp], #16
+    mrs x20, sp_el0
+    stp x20, x0, [x21, #-16]!
+    mrs x19, esr_el1
+    mrs x20, elr_el1
+    stp x20, x19, [x21, #-16]!
+    mrs x19, spsr_el1
+    str x19, [x21, #-8]!
 
-    // Store all general purpose registers on the stack.
-    stp    x0,  x1,  [sp, #16 * 0]
-    stp    x2,  x3,  [sp, #16 * 1]
-    stp    x4,  x5,  [sp, #16 * 2]
-    stp    x6,  x7,  [sp, #16 * 3]
-    stp    x8,  x9,  [sp, #16 * 4]
-    stp    x10, x11, [sp, #16 * 5]
-    stp    x12, x13, [sp, #16 * 6]
-    stp    x14, x15, [sp, #16 * 7]
-    stp    x16, x17, [sp, #16 * 8]
-    stp    x18, x19, [sp, #16 * 9]
-    stp    x20, x21, [sp, #16 * 10]
-    stp    x22, x23, [sp, #16 * 11]
-    stp    x24, x25, [sp, #16 * 12]
-    stp    x26, x27, [sp, #16 * 13]
-    stp    x28, x29, [sp, #16 * 14]
-
-    // Add the exception link register (ELR_EL1) and the saved program status (SPSR_EL1).
-    mrs    x1,  ELR_EL1
-    mrs    x2,  SPSR_EL1
-
-    stp    lr,  x1,  [sp, #16 * 15]
-    str    w2,       [sp, #16 * 16]
-
-    // x0 is the first argument for the function called through `\handler`.
-    mov    x0,  sp
-
-    // Call `\handler`.
-    bl     \handler
-
-    // After returning from exception handling code, replay the saved context and return via `eret`.
-    b      __exception_restore_context
+    ldr x19, =KERNEL_STACK_TOP
+    mov sp, x19
+    bl  \handler
+    b   pop_time_stack
 .endm
 
-.macro FIQ_SUSPEND
+.macro VECTOR_DISABLED
 1:  wfe
     b      1b
 .endm
 
-//--------------------------------------------------------------------------------------------------
-// The exception vector table.
-//--------------------------------------------------------------------------------------------------
-.section .exception_vectors, "ax", @progbits
-
-// Align by 2^11 bytes, as demanded by the AArch64 spec. Same as ALIGN(2048) in an ld script.
 .align 11
-
-// Export a symbol for the Rust code to use.
-__exception_vector_start:
+.global vectors
+vectors:
 
 // Current exception level with SP_EL0.
-// .org sets the offset relative to section start.
-//
-// It must be ensured that `CALL_WITH_CONTEXT` <= 0x80 bytes.
 .org 0x000
-    CALL_WITH_CONTEXT current_el0_synchronous
+    VECTOR current_el0_synchronous
 .org 0x080
-    CALL_WITH_CONTEXT current_el0_irq
+    VECTOR current_el0_irq
 .org 0x100
-    FIQ_SUSPEND
+    VECTOR_DISABLED
 .org 0x180
-    CALL_WITH_CONTEXT current_el0_serror
+    VECTOR current_el0_serror
 
 // Current exception level with SP_ELx, x > 0.
 .org 0x200
-    CALL_WITH_CONTEXT current_elx_synchronous
+    VECTOR current_elx_synchronous
 .org 0x280
-    CALL_WITH_CONTEXT current_elx_irq
+    VECTOR current_elx_irq
 .org 0x300
-    FIQ_SUSPEND
+    VECTOR_DISABLED // FIQ
 .org 0x380
-    CALL_WITH_CONTEXT current_elx_serror
+    VECTOR current_elx_serror
 
 // Lower exception level, aarch64
 .org 0x400
-    CALL_WITH_CONTEXT lower_aarch64_synchronous
+    VECTOR lower_aarch64_synchronous
 .org 0x480
-    CALL_WITH_CONTEXT lower_aarch64_irq
+    VECTOR lower_aarch64_irq
 .org 0x500
-    FIQ_SUSPEND
+    VECTOR_DISABLED // FIQ
 .org 0x580
-    CALL_WITH_CONTEXT lower_aarch64_serror
+    VECTOR lower_aarch64_serror
 
 // Lower exception level, aarch32
 .org 0x600
-    CALL_WITH_CONTEXT lower_aarch32_synchronous
+    VECTOR_DISABLED
 .org 0x680
-    CALL_WITH_CONTEXT lower_aarch32_irq
+    VECTOR_DISABLED
 .org 0x700
-    FIQ_SUSPEND
+    VECTOR_DISABLED
 .org 0x780
-    CALL_WITH_CONTEXT lower_aarch32_serror
+    VECTOR_DISABLED
 .org 0x800
 
-//--------------------------------------------------------------------------------------------------
-// Helper functions
-//--------------------------------------------------------------------------------------------------
-__exception_restore_context:
-    ldr    w19,      [sp, #16 * 16]
-    ldp    lr,  x20, [sp, #16 * 15]
-
-    msr    SPSR_EL1, x19
-    msr    ELR_EL1,  x20
-
-    ldp    x0,  x1,  [sp, #16 * 0]
-    ldp    x2,  x3,  [sp, #16 * 1]
-    ldp    x4,  x5,  [sp, #16 * 2]
-    ldp    x6,  x7,  [sp, #16 * 3]
-    ldp    x8,  x9,  [sp, #16 * 4]
-    ldp    x10, x11, [sp, #16 * 5]
-    ldp    x12, x13, [sp, #16 * 6]
-    ldp    x14, x15, [sp, #16 * 7]
-    ldp    x16, x17, [sp, #16 * 8]
-    ldp    x18, x19, [sp, #16 * 9]
-    ldp    x20, x21, [sp, #16 * 10]
-    ldp    x22, x23, [sp, #16 * 11]
-    ldp    x24, x25, [sp, #16 * 12]
-    ldp    x26, x27, [sp, #16 * 13]
-    ldp    x28, x29, [sp, #16 * 14]
-
-    add    sp,  sp,  #16 * 17
-
+pop_time_stack:
+    ldr x30, =TRAP_FRAME
+    ldr x0, [x30], #8
+    msr spsr_el1, x0
+    ldp x0, x1, [x30], #16
+    msr elr_el1, x0
+    ldp x1, x0, [x30], #16
+    msr sp_el0, x1
+    ldp x1, x2, [x30], #16
+    ldp x3, x4, [x30], #16
+    ldp x5, x6, [x30], #16
+    ldp x7, x8, [x30], #16
+    ldp x9, x10, [x30], #16
+    ldp x11, x12, [x30], #16
+    ldp x13, x14, [x30], #16
+    ldp x15, x16, [x30], #16
+    ldp x17, x18, [x30], #16
+    ldp x19, x20, [x30], #16
+    ldp x21, x22, [x30], #16
+    ldp x23, x24, [x30], #16
+    ldp x25, x26, [x30], #16
+    ldp x27, x28, [x30], #16
+    ldp x29, x30, [x30] // do NOT add `#0` here which makes it an invalid instruction
     eret

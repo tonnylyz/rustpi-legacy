@@ -14,3 +14,4 @@ sysroot_path = "target/sysroot"
 [dependencies]
 cortex-a = { git = "https://github.com/tonnylyz/cortex-a"}
 register = "0.5.0"
+buddy_system_allocator = "0.3.6"

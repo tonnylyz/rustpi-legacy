@@ -9,7 +9,6 @@ SECTIONS
     _init_end = ABSOLUTE(.);
     .text 0xFFFFFF8000000000 + _init_end : AT(_init_end) {
         *(.text*)
-        *(.exception_vectors)
     }
     .rodata : {
         *(.rodata*)
@@ -20,6 +19,7 @@ SECTIONS
     .bss : {
         *(.bss*)
     }
+    _kernel_end = ABSOLUTE(.);
     /DISCARD/ : {
         *(.comment)
     }

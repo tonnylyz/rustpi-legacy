@@ -101,7 +101,7 @@ struct PageTables {
 }
 
 #[no_mangle]
-#[link_section = ".data.vm"]
+#[link_section = ".data.kvm"]
 static mut TABLES: PageTables = PageTables {
   lvl3: [[[PageDescriptor(0); ENTRY_PER_PAGE]; ENTRY_PER_PAGE]; ADDRESS_SPACE_LIMIT_GB],
   lvl2: [[TableDescriptor(0); ENTRY_PER_PAGE]; ADDRESS_SPACE_LIMIT_GB],
@@ -126,8 +126,8 @@ use cortex_a::regs::*;
 use cortex_a::*;
 
 #[no_mangle]
-#[link_section = ".text.vm"]
-pub unsafe extern "C" fn vm_init() {
+#[link_section = ".text.kvm"]
+unsafe extern "C" fn kvm_init() {
   for i in 0..ADDRESS_SPACE_LIMIT_GB {
     let output_addr = TABLES.lvl2[i].base_addr_usize();
     TABLES.lvl1[i] = TableDescriptor::new(output_addr);
@@ -172,4 +172,16 @@ pub unsafe extern "C" fn vm_init() {
   barrier::isb(barrier::SY);
   SCTLR_EL1.modify(SCTLR_EL1::M::Enable + SCTLR_EL1::C::NonCacheable + SCTLR_EL1::I::NonCacheable);
   barrier::isb(barrier::SY);
+}
+
+#[no_mangle]
+#[link_section=".text.kvm"]
+pub unsafe fn kvm_enable() -> ! {
+  use cortex_a::regs::*;
+  // address over 0x4000_0000 (1GB) will not be mapped.
+  // access before MMU enabled
+  crate::driver::mmio::mmio_write(0x4000_0040, 0b1111); // timer irq control
+  kvm_init();
+  SP.set(0xFFFFFF8000000000 + 0x0008_0000);
+  crate::main();
 }

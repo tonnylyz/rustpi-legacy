@@ -2,6 +2,7 @@
 #![no_main]
 #![feature(global_asm)]
 #![feature(alloc_error_handler)]
+#![feature(panic_info_message)]
 
 extern crate cortex_a;
 extern crate register;
@@ -12,7 +13,6 @@ mod driver;
 mod lib;
 
 use lib::print;
-use lib::vm::vm_init;
 
 #[no_mangle]
 #[link_section=".text.start"]
@@ -21,7 +21,7 @@ pub unsafe extern "C" fn _start() -> ! {
   const CORE_MASK: u64 = 0x3;
   const BOOT_CORE_ID: u64 = 0;
   if BOOT_CORE_ID == MPIDR_EL1.get() & CORE_MASK {
-    CPACR_EL1.set(3 << 20);
+    CPACR_EL1.set(3 << 20); // enable neon over EL1
     HCR_EL2.write(HCR_EL2::RW::EL1IsAarch64);
     SPSR_EL2.write(
       SPSR_EL2::D::Unmasked
@@ -30,7 +30,7 @@ pub unsafe extern "C" fn _start() -> ! {
         + SPSR_EL2::F::Unmasked
         + SPSR_EL2::M::EL1h,
     );
-    ELR_EL2.set(enable_mmu as *const () as u64);
+    ELR_EL2.set(lib::kvm::kvm_enable as *const () as u64);
     SP_EL1.set(0x0008_0000);
     asm::eret()
   } else {
@@ -38,16 +38,6 @@ pub unsafe extern "C" fn _start() -> ! {
       asm::wfe()
     }
   }
-}
-
-#[no_mangle]
-#[link_section=".text.vm"]
-pub unsafe fn enable_mmu() -> ! {
-  // address over 0x4000_0000 (1GB) will not be mapped.
-  // access before MMU enabled
-  driver::mmio::mmio_write(0x4000_0040, 0b1111); // timer irq control
-  vm_init();
-  main();
 }
 
 extern "C" {
@@ -65,19 +55,24 @@ pub unsafe fn main() -> ! {
   println!("Paged Pool     {:08x}~{:08x}",kernel_end,0x3000_0000);
   println!("Non-Paged Pool {:08x}~{:08x}",0x3000_0000,0x3f00_0000);
   lib::allocator::allocator_init();
-  use alloc::boxed::Box;
-  let a = Box::new(1);
-  println!("box {}", a.as_ref());
-  println!("box @{:p}", a.as_ref());
+  //use alloc::boxed::Box;
+  //let a = Box::new(1);
+  //println!("box {}", a.as_ref());
+  //println!("box @{:p}", a.as_ref());
   //driver::timer::timer_init();
   for i in (kernel_end..0x3000_0000).step_by(4096) {
     lib::page_frame::PAGE_FRAMES.push(lib::page_frame::PageFrame::new(i));
   }
-  for i in 0..10 {
-    let p = lib::page_frame::page_frame_alloc();
-    println!("{:p} {:016x}", &p, p.kva());
-  }
+  let frame = lib::page_frame::page_frame_alloc();
+  let upt = lib::uvm::UserPageTable::new(frame);
+  let df = lib::page_frame::page_frame_alloc();
+  upt.map_frame(0x12345678, &df);
+  upt.install();
 
-  loop { }
+  // Write into low address space
+  *(0x12345678 as *mut u64) = 0xdeadbeef;
+  // Read from high address space
+  println!("{:08x}", *((df.kva() + 0x678) as *mut u64));
+
+  panic!("Kernel Main End");
 }
-

@@ -4,16 +4,12 @@ use driver::mmio::mmio_write;
 #[derive(Clone, Copy, Debug)]
 pub struct PageFrame {
   pa: usize,
-  ref_count: usize,
-  free: bool,
 }
 
 impl PageFrame {
   pub fn new(pa : usize) -> Self {
     PageFrame{
       pa,
-      ref_count: 0,
-      free: true,
     }
   }
   pub fn ppn(&self) -> usize {
@@ -38,18 +34,11 @@ impl PageFrame {
 pub fn page_frame_alloc() -> PageFrame {
   let mut r : PageFrame;
   unsafe {
-    for (i, frame) in PAGE_FRAMES.iter().enumerate() {
-      if frame.free {
-        PAGE_FRAMES.remove(i);
-        r = *frame;
-        r.ref_count = 0;
-        r.zero();
-        return r;
-      }
-    }
+    r = *PAGE_FRAMES.first().unwrap();
+    PAGE_FRAMES.remove(0);
+    r.zero();
+    return r;
   }
-  panic!("Page frame exhausted");
 }
-
 
 pub static mut PAGE_FRAMES : Vec<PageFrame> = Vec::new();

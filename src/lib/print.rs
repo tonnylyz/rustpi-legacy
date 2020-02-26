@@ -31,11 +31,6 @@ pub fn print_arg(args: fmt::Arguments) {
 }
 
 
-#[panic_handler]
-fn panic(_info: &core::panic::PanicInfo) -> ! {
-  loop {}
-}
-
 #[macro_export]
 macro_rules! print {
     ($($arg:tt)*) => ($crate::print::print_arg(format_args!($($arg)*)));
@@ -47,3 +42,14 @@ macro_rules! println {
     ($($arg:tt)*) => ($crate::print!("{}\n", format_args!($($arg)*)));
 }
 
+#[panic_handler]
+fn panic_handler(info: &core::panic::PanicInfo) -> ! {
+  if let Some(m) = info.message() {
+    println!("\nKernel panic: {}", m);
+  } else {
+    println!("\nKernel panic!");
+  }
+  loop {
+    cortex_a::asm::wfe();
+  }
+}

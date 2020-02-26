@@ -12,6 +12,5 @@ pub fn allocator_init() {
 
 #[alloc_error_handler]
 fn alloc_error_handler(_: core::alloc::Layout) -> ! {
-  println!("alloc_error_handler");
-  loop {}
+  panic!("Kernel heap exhausted");
 }

@@ -1,6 +1,6 @@
-PATH := $(HOME)/.cargo/bin:/usr/local/x86_64_aarch64-elf/bin:$(PATH)
+#PATH := $(HOME)/.cargo/bin:/usr/local/x86_64_aarch64-elf/bin:$(PATH)
 
-.PHONY: all clean kernel emu miniclean debug
+.PHONY: all clean kernel emu debug
 
 all: kernel
 
@@ -12,10 +12,10 @@ kernel:
 	cp target/aarch64-none-elf/release/rustpi kernel.elf
 	aarch64-elf-objcopy kernel.elf -O binary kernel8.img
 
-debug:
-	aarch64-elf-objdump -D kernel.elf > dis
-	aarch64-elf-objdump -x kernel.elf > dissym
-	nm -n kernel.elf > dissymlist
+debug: kernel
+	aarch64-elf-objdump -D kernel.elf > debug.D
+	aarch64-elf-objdump -x kernel.elf > debug.x
+	aarch64-elf-nm -n kernel.elf > debug.nm
 	aarch64-elf-gdb -x debug.gdb
 
 emu: kernel

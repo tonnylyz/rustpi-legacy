@@ -4,4 +4,5 @@ pub mod kvm;
 pub mod allocator;
 pub mod page_frame;
 pub mod uvm;
+pub mod process;
 

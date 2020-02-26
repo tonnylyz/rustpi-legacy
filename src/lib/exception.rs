@@ -9,21 +9,31 @@ use cortex_a::{barrier, regs::*};
 global_asm!(include_str!("exception.S"));
 
 #[repr(C)]
-struct TrapFrame {
-  spsr: u64,
-  elr: u64,
-  esr: u64,
-  sp: u64,
-  gpr: [u64; 31],
+#[derive(Copy, Clone)]
+pub struct TrapFrame {
+  pub gpr: [u64; 31],
+  pub spsr: u64,
+  pub elr: u64,
+  pub sp: u64,
+}
+
+impl TrapFrame {
+  pub fn default() -> Self {
+    TrapFrame{
+      gpr: [0; 31],
+      spsr: 0,
+      elr: 0x80000,
+      sp: 0x8000_0000,
+    }
+  }
 }
 
 #[no_mangle]
-static mut TRAP_FRAME : TrapFrame = TrapFrame {
+pub static mut TRAP_FRAME : TrapFrame = TrapFrame {
+  gpr: [0; 31],
   spsr: 0,
   elr: 0,
-  esr: 0,
   sp: 0,
-  gpr: [0; 31],
 };
 
 //--------------------------------------------------------------------------------------------------
@@ -32,18 +42,17 @@ static mut TRAP_FRAME : TrapFrame = TrapFrame {
 
 #[no_mangle]
 unsafe extern "C" fn current_el0_synchronous() {
-  loop {}
+  panic!("current_el0_synchronous");
 }
 
 #[no_mangle]
 unsafe extern "C" fn current_el0_irq() {
-  println!("current_el0_irq");
-  loop {}
+  panic!("current_el0_irq");
 }
 
 #[no_mangle]
 unsafe extern "C" fn current_el0_serror() {
-  loop {}
+  panic!("current_el0_serror");
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -53,7 +62,7 @@ unsafe extern "C" fn current_el0_serror() {
 /// Asynchronous exception taken from the current EL, using SP of the current EL.
 #[no_mangle]
 unsafe extern "C" fn current_elx_synchronous() {
-  loop {}
+  panic!("current_elx_synchronous");
 }
 
 #[no_mangle]
@@ -66,7 +75,7 @@ unsafe extern "C" fn current_elx_irq() {
 
 #[no_mangle]
 unsafe extern "C" fn current_elx_serror() {
-  loop {}
+  panic!("current_elx_serror");
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -75,18 +84,17 @@ unsafe extern "C" fn current_elx_serror() {
 
 #[no_mangle]
 unsafe extern "C" fn lower_aarch64_synchronous() {
-  loop {}
+  println!("lower_aarch64_synchronous elr {:016x} x0 {:016x}", ELR_EL1.get(), TRAP_FRAME.gpr[0]);
 }
 
 #[no_mangle]
 unsafe extern "C" fn lower_aarch64_irq() {
-  println!("lower_aarch64_irq");
-  loop {}
+  panic!("lower_aarch64_irq");
 }
 
 #[no_mangle]
 unsafe extern "C" fn lower_aarch64_serror() {
-  loop {}
+  panic!("lower_aarch64_serror");
 }
 
 pub unsafe fn set_vbar_el1() {

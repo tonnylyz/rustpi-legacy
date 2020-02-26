@@ -11,11 +11,11 @@ kernel:
 	cargo xbuild --target aarch64-none-elf.json --release --verbose
 	cp target/aarch64-none-elf/release/rustpi kernel.elf
 	aarch64-elf-objcopy kernel.elf -O binary kernel8.img
-
-debug: kernel
 	aarch64-elf-objdump -D kernel.elf > debug.D
 	aarch64-elf-objdump -x kernel.elf > debug.x
 	aarch64-elf-nm -n kernel.elf > debug.nm
+
+debug: kernel
 	aarch64-elf-gdb -x debug.gdb
 
 emu: kernel

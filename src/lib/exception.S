@@ -1,37 +1,34 @@
 .equ KERNEL_STACK_TOP, 0xFFFFFF8000080000
-.equ TRAP_FRAME_SIZE, 280
 
 .macro VECTOR handler
-    str x0, [sp, #-16]!
-    ldr x0, =TRAP_FRAME
-    add x0, x0, TRAP_FRAME_SIZE
-    stp x29, x30, [x0, #-16]!
-    stp x27, x28, [x0, #-16]!
-    stp x25, x26, [x0, #-16]!
-    stp x23, x24, [x0, #-16]!
-    stp x21, x22, [x0, #-16]!
-    stp x19, x20, [x0, #-16]!
-    stp x17, x18, [x0, #-16]!
-    stp x15, x16, [x0, #-16]!
-    stp x13, x14, [x0, #-16]!
-    stp x11, x12, [x0, #-16]!
-    stp x9, x10, [x0, #-16]!
-    stp x7, x8, [x0, #-16]!
-    stp x5, x6, [x0, #-16]!
-    stp x3, x4, [x0, #-16]!
-    stp x1, x2, [x0, #-16]!
-    mov x21, x0
-    ldr x0, [sp], #16
-    mrs x20, sp_el0
-    stp x20, x0, [x21, #-16]!
-    mrs x19, esr_el1
-    mrs x20, elr_el1
-    stp x20, x19, [x21, #-16]!
-    mrs x19, spsr_el1
-    str x19, [x21, #-8]!
+    str x30, [sp, #-16]!
+    ldr x30, =TRAP_FRAME
+    stp x0, x1,  [x30], #16
+    stp x2, x3,  [x30], #16
+    stp x4, x5,  [x30], #16
+    stp x6, x7,  [x30], #16
+    stp x8, x9,  [x30], #16
+    stp x10,x11, [x30], #16
+    stp x12,x13, [x30], #16
+    stp x14,x15, [x30], #16
+    stp x16,x17, [x30], #16
+    stp x18,x19, [x30], #16
+    stp x20,x21, [x30], #16
+    stp x22,x23, [x30], #16
+    stp x24,x25, [x30], #16
+    stp x26,x27, [x30], #16
+    stp x28,x29, [x30], #16
 
-    ldr x19, =KERNEL_STACK_TOP
-    mov sp, x19
+    ldr x0, [sp], #16 // x30
+    mrs x1, spsr_el1
+    stp x0, x1, [x30], #16
+
+    mrs x0, elr_el1
+    mrs x1, sp_el0
+    stp x0, x1, [x30], #16
+
+    ldr x0, =KERNEL_STACK_TOP
+    mov sp, x0
     bl  \handler
     b   pop_time_stack
 .endm
@@ -86,27 +83,29 @@ vectors:
     VECTOR_DISABLED
 .org 0x800
 
+.global pop_time_stack
 pop_time_stack:
     ldr x30, =TRAP_FRAME
-    ldr x0, [x30], #8
+    ldr x0, [x30, #(31 * 8)] // spsr
+    ldr x1, [x30, #(32 * 8)] // elr
+    ldr x2, [x30, #(33 * 8)] // sp
     msr spsr_el1, x0
-    ldp x0, x1, [x30], #16
-    msr elr_el1, x0
-    ldp x1, x0, [x30], #16
-    msr sp_el0, x1
-    ldp x1, x2, [x30], #16
-    ldp x3, x4, [x30], #16
-    ldp x5, x6, [x30], #16
-    ldp x7, x8, [x30], #16
-    ldp x9, x10, [x30], #16
-    ldp x11, x12, [x30], #16
-    ldp x13, x14, [x30], #16
-    ldp x15, x16, [x30], #16
-    ldp x17, x18, [x30], #16
-    ldp x19, x20, [x30], #16
-    ldp x21, x22, [x30], #16
-    ldp x23, x24, [x30], #16
-    ldp x25, x26, [x30], #16
-    ldp x27, x28, [x30], #16
-    ldp x29, x30, [x30] // do NOT add `#0` here which makes it an invalid instruction
+    msr elr_el1, x1
+    msr sp_el0, x2
+    ldp x0, x1,  [x30], #16
+    ldp x2, x3,  [x30], #16
+    ldp x4, x5,  [x30], #16
+    ldp x6, x7,  [x30], #16
+    ldp x8, x9,  [x30], #16
+    ldp x10,x11, [x30], #16
+    ldp x12,x13, [x30], #16
+    ldp x14,x15, [x30], #16
+    ldp x16,x17, [x30], #16
+    ldp x18,x19, [x30], #16
+    ldp x20,x21, [x30], #16
+    ldp x22,x23, [x30], #16
+    ldp x24,x25, [x30], #16
+    ldp x26,x27, [x30], #16
+    ldp x28,x29, [x30], #16
+    ldr x30, [x30]
     eret

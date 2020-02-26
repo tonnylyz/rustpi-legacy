@@ -36,6 +36,7 @@ pub fn page_frame_alloc() -> PageFrame {
   unsafe {
     r = *PAGE_FRAMES.first().unwrap();
     PAGE_FRAMES.remove(0);
+    println!("page_frame_alloc alloced {:016x}", r.pa);
     r.zero();
     return r;
   }

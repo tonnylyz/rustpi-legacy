@@ -1,40 +1,94 @@
-use lib::page_frame::PageFrame;
 use lib::uvm::UserPageTable;
+use lib::exception::TrapFrame;
 
+const PROCESS_NUM_MAX : usize = 128;
+
+#[derive(Eq, PartialEq, Copy, Clone)]
+pub enum ProcessStatus {
+  Running,
+  Ready,
+  Allocated,
+  Free,
+}
 // Process Control Block
-pub struct Process {
-  pid: u32,
-  page_table: UserPageTable,
-  context: super::exception::TrapFrame,
+#[derive(Copy, Clone)]
+struct Process {
+  id: u8,
+  page_table: Option<UserPageTable>,
+  context: Option<TrapFrame>,
   entry: u64,
+  status: ProcessStatus,
 }
 
 global_asm!(include_str!("program.S"));
 
-impl Process {
-  pub fn new() -> Self {
-    extern {
-      fn user_program_entry();
-      fn pop_time_stack();
-    }
-    let frame = super::page_frame::page_frame_alloc();
-    let upt = super::uvm::UserPageTable::new(frame);
-    let text_frame = super::page_frame::PageFrame::new(user_program_entry as usize & 0xffff_ffff);
-    upt.map_frame(0x80000, &text_frame);
-    upt.install();
-    unsafe {
-      use cortex_a::regs::*;
-      use cortex_a::asm::*;
-      ELR_EL1.set(0x80000);
-      SPSR_EL1.set(0x80000);
-      SP_EL0.set(0x80000000);
-      eret();
-    }
-    Process {
-      pid: 0,
-      page_table: upt,
-      context: super::exception::TrapFrame::default(),
-      entry: 0x80000,
+pub fn process_init() {
+  unsafe {
+    for (i, pcb) in PROCESSES.iter_mut().enumerate() {
+      pcb.id = (i + 1) as u8;
+      pcb.status = ProcessStatus::Free;
     }
   }
 }
+
+#[derive(Copy, Clone, Debug)]
+pub struct Pid(u8);
+
+impl Pid {
+  pub fn init_context(&self) {
+    let pid = (*self).0;
+    unsafe {
+      PROCESSES[pid as usize].context = Some(TrapFrame::default());
+    }
+  }
+
+  pub fn set_page_table(&self, upt : UserPageTable) {
+    let pid = (*self).0;
+    unsafe {
+      PROCESSES[pid as usize].page_table = Some(upt);
+    }
+  }
+
+  pub fn get_page_table(&self) -> UserPageTable {
+    let pid = (*self).0;
+    unsafe {
+      if let Some(upt) = PROCESSES[pid as usize].page_table {
+        upt
+      } else {
+        panic!("Page table not set");
+      }
+    }
+  }
+
+  pub fn sched(&self) -> ! {
+    let pid = (*self).0;
+    extern {
+      fn pop_time_stack() -> !;
+    }
+    unsafe {
+      PROCESSES[pid as usize].page_table.unwrap().install();
+      super::exception::TRAP_FRAME = PROCESSES[pid as usize].context.unwrap();
+      pop_time_stack();
+    }
+  }
+}
+
+pub fn process_alloc() -> Pid {
+  unsafe {
+    for (i, pcb) in PROCESSES.iter_mut().enumerate() {
+      if pcb.status == ProcessStatus::Free {
+        pcb.status = ProcessStatus::Allocated;
+        return Pid(i as u8);
+      }
+    }
+  }
+  panic!("PCB exhausted");
+}
+
+static mut PROCESSES : [Process;PROCESS_NUM_MAX] = [Process {
+  id: 0,
+  page_table: None,
+  context: None,
+  entry: 0,
+  status: ProcessStatus::Free,
+}; PROCESS_NUM_MAX];

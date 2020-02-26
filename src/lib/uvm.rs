@@ -119,7 +119,7 @@ impl UserPageTable {
       barrier::dsb(barrier::SY);
     }
   }
-  pub fn map_frame(&self, va: usize, frame: &PageFrame) {
+  pub fn map_frame(&self, va: usize, frame: PageFrame) {
     let pa = frame.pa();
     self.map(va, pa);
   }

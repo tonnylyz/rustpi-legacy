@@ -89,7 +89,8 @@ unsafe extern "C" fn lower_aarch64_synchronous() {
 
 #[no_mangle]
 unsafe extern "C" fn lower_aarch64_irq() {
-  panic!("lower_aarch64_irq");
+  println!("lower_aarch64_irq");
+  crate::driver::timer::timer_next(0);
 }
 
 #[no_mangle]
@@ -97,11 +98,13 @@ unsafe extern "C" fn lower_aarch64_serror() {
   panic!("lower_aarch64_serror");
 }
 
-pub unsafe fn set_vbar_el1() {
+pub fn exception_init() {
   extern "C" {
     static mut vectors: u64;
   }
-  let addr: u64 = &vectors as *const _ as u64;
-  VBAR_EL1.set(addr);
-  barrier::isb(barrier::SY);
+  unsafe {
+    let addr: u64 = &vectors as *const _ as u64;
+    VBAR_EL1.set(addr);
+    barrier::isb(barrier::SY);
+  }
 }

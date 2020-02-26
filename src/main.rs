@@ -40,38 +40,36 @@ pub unsafe extern "C" fn _start() -> ! {
   }
 }
 
-extern "C" {
-  static mut _kernel_end: u64;
-}
+
 
 #[no_mangle]
 pub unsafe fn main() -> ! {
   driver::uart::uart_init();
-  println!("hello");
-  lib::exception::set_vbar_el1();
-  println!("set_vbar_el1");
+  lib::exception::exception_init();
 
-  let kernel_end = 0x300000;//(((&_kernel_end as *const _ as usize & 0xffff_ffff) >> 12) << 12) + 4096;
-  println!("Paged Pool     {:08x}~{:08x}",kernel_end,0x3000_0000);
-  println!("Non-Paged Pool {:08x}~{:08x}",0x3000_0000,0x3f00_0000);
-  lib::allocator::allocator_init();
-  //use alloc::boxed::Box;
-  //let a = Box::new(1);
-  //println!("box {}", a.as_ref());
-  //println!("box @{:p}", a.as_ref());
-  for i in (kernel_end..0x3000_0000).step_by(4096) {
-    lib::page_frame::PAGE_FRAMES.push(lib::page_frame::PageFrame::new(i));
+  extern "C" {
+    static mut _kernel_end: u64;
   }
-  driver::timer::timer_init();
-  lib::process::Process::new();
-  //let df = lib::page_frame::page_frame_alloc();
-  //upt.map_frame(0x12345678, &df);
-  //upt.install();
-//
-  //// Write into low address space
-  //*(0x12345678 as *mut u64) = 0xdeadbeef;
-  //// Read from high address space
-  //println!("{:08x}", *((df.kva() + 0x678) as *mut u64));
+  let kernel_end = 0x300000;//(((&_kernel_end as *const _ as usize & 0xffff_ffff) >> 12) << 12) + 4096;
+  println!("Non-Paged Pool {:08x}~{:08x}",0x3000_0000,0x3f00_0000);
+  println!("Paged Pool     {:08x}~{:08x}",kernel_end,0x3000_0000);
+  lib::allocator::allocator_init(0x3000_0000..0x3f00_0000);
+  lib::page_frame::page_frame_init(kernel_end..0x3000_0000);
 
-  panic!("Kernel Main End");
+  driver::timer::timer_init();
+  lib::process::process_init();
+
+  let pid = lib::process::process_alloc();
+  pid.init_context();
+  let upt = lib::uvm::UserPageTable::new(
+    lib::page_frame::page_frame_alloc()
+  );
+  extern {
+    fn user_program_entry();
+  }
+  let user_program_frame = lib::page_frame::PageFrame::new(user_program_entry as usize & 0xffff_ffff);
+  upt.map_frame(0x80000, user_program_frame);
+  pid.set_page_table(upt);
+  pid.sched();
+
 }

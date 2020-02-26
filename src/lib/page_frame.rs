@@ -1,5 +1,5 @@
 use alloc::vec::Vec;
-use driver::mmio::mmio_write;
+use core::ops::Range;
 
 #[derive(Clone, Copy, Debug)]
 pub struct PageFrame {
@@ -32,14 +32,22 @@ impl PageFrame {
 }
 
 pub fn page_frame_alloc() -> PageFrame {
-  let mut r : PageFrame;
+  let r : PageFrame;
   unsafe {
     r = *PAGE_FRAMES.first().unwrap();
     PAGE_FRAMES.remove(0);
     println!("page_frame_alloc alloced {:016x}", r.pa);
     r.zero();
-    return r;
+    r
   }
 }
 
-pub static mut PAGE_FRAMES : Vec<PageFrame> = Vec::new();
+static mut PAGE_FRAMES : Vec<PageFrame> = Vec::new();
+
+pub fn page_frame_init(range : Range<usize>) {
+  for i in range.step_by(4096) {
+    unsafe {
+      PAGE_FRAMES .push(PageFrame::new(i));
+    }
+  }
+}

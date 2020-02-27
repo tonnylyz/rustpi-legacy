@@ -5,7 +5,7 @@ use core::ops::Range;
 #[global_allocator]
 static HEAP_ALLOCATOR: LockedHeap = LockedHeap::empty();
 
-pub fn allocator_init(range : Range<usize>) {
+pub fn allocator_init(range: Range<usize>) {
   unsafe {
     HEAP_ALLOCATOR.lock().init(0xFFFFFF8000000000 + range.start, range.end - range.start)
   }

@@ -15,9 +15,9 @@ mod lib;
 use lib::print;
 
 #[no_mangle]
-#[link_section=".text.start"]
+#[link_section = ".text.start"]
 pub unsafe extern "C" fn _start() -> ! {
-  use cortex_a::{*,regs::*};
+  use cortex_a::{*, regs::*};
   const CORE_MASK: u64 = 0x3;
   const BOOT_CORE_ID: u64 = 0;
   if BOOT_CORE_ID == MPIDR_EL1.get() & CORE_MASK {
@@ -41,7 +41,6 @@ pub unsafe extern "C" fn _start() -> ! {
 }
 
 
-
 #[no_mangle]
 pub unsafe fn main() -> ! {
   driver::uart::uart_init();
@@ -51,8 +50,8 @@ pub unsafe fn main() -> ! {
     static mut _kernel_end: u64;
   }
   let kernel_end = 0x300000;//(((&_kernel_end as *const _ as usize & 0xffff_ffff) >> 12) << 12) + 4096;
-  println!("Non-Paged Pool {:08x}~{:08x}",0x3000_0000,0x3f00_0000);
-  println!("Paged Pool     {:08x}~{:08x}",kernel_end,0x3000_0000);
+  println!("Non-Paged Pool {:08x}~{:08x}", 0x3000_0000, 0x3f00_0000);
+  println!("Paged Pool     {:08x}~{:08x}", kernel_end, 0x3000_0000);
   lib::allocator::allocator_init(0x3000_0000..0x3f00_0000);
   lib::page_frame::page_frame_init(kernel_end..0x3000_0000);
 
@@ -71,5 +70,4 @@ pub unsafe fn main() -> ! {
   upt.map_frame(0x80000, user_program_frame);
   pid.set_page_table(upt);
   pid.sched();
-
 }

@@ -1,7 +1,8 @@
 use lib::uvm::UserPageTable;
 use lib::exception::TrapFrame;
+use core::borrow::Borrow;
 
-const PROCESS_NUM_MAX : usize = 128;
+const PROCESS_NUM_MAX: usize = 128;
 
 #[derive(Eq, PartialEq, Copy, Clone)]
 pub enum ProcessStatus {
@@ -10,6 +11,7 @@ pub enum ProcessStatus {
   Allocated,
   Free,
 }
+
 // Process Control Block
 #[derive(Copy, Clone)]
 struct Process {
@@ -42,7 +44,7 @@ impl Pid {
     }
   }
 
-  pub fn set_page_table(&self, upt : UserPageTable) {
+  pub fn set_page_table(&self, upt: UserPageTable) {
     let pid = (*self).0;
     unsafe {
       PROCESSES[pid as usize].page_table = Some(upt);
@@ -66,7 +68,13 @@ impl Pid {
       fn pop_time_stack() -> !;
     }
     unsafe {
-      PROCESSES[pid as usize].page_table.unwrap().install();
+      if PROCESSES[pid as usize].page_table.is_none() {
+        panic!("Process page table not exists")
+      }
+      if PROCESSES[pid as usize].context.is_none() {
+        panic!("Process context not exists")
+      }
+      PROCESSES[pid as usize].page_table.unwrap().install(pid as u16);
       super::exception::TRAP_FRAME = PROCESSES[pid as usize].context.unwrap();
       pop_time_stack();
     }
@@ -85,7 +93,7 @@ pub fn process_alloc() -> Pid {
   panic!("PCB exhausted");
 }
 
-static mut PROCESSES : [Process;PROCESS_NUM_MAX] = [Process {
+static mut PROCESSES: [Process; PROCESS_NUM_MAX] = [Process {
   id: 0,
   page_table: None,
   context: None,

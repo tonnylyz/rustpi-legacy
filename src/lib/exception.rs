@@ -19,17 +19,26 @@ pub struct TrapFrame {
 
 impl TrapFrame {
   pub fn default() -> Self {
-    TrapFrame{
+    TrapFrame {
       gpr: [0; 31],
-      spsr: 0,
+      spsr: (SPSR_EL1::M::EL0t + SPSR_EL1::I::Unmasked).value as u64,
       elr: 0x80000,
       sp: 0x8000_0000,
     }
   }
 }
 
+//#[repr(transparent)]
+//struct SpsrEl1(LocalRegisterCopy<u32, SPSR_EL1::Register>);
+//
+//impl core::convert::From<u64> for SpsrEl1 {
+//  fn from(r: u64) -> Self {
+//    SpsrEl1(LocalRegisterCopy::new(r as u32))
+//  }
+//}
+
 #[no_mangle]
-pub static mut TRAP_FRAME : TrapFrame = TrapFrame {
+pub static mut TRAP_FRAME: TrapFrame = TrapFrame {
   gpr: [0; 31],
   spsr: 0,
   elr: 0,
@@ -84,7 +93,16 @@ unsafe extern "C" fn current_elx_serror() {
 
 #[no_mangle]
 unsafe extern "C" fn lower_aarch64_synchronous() {
-  println!("lower_aarch64_synchronous elr {:016x} x0 {:016x}", ELR_EL1.get(), TRAP_FRAME.gpr[0]);
+  if ESR_EL1.matches_all(ESR_EL1::EC::SVC64) {
+    // system call (treat as an print i)
+    println!("{}", TRAP_FRAME.gpr[0]);
+  } else if ESR_EL1.matches_all(ESR_EL1::EC::InstrAbortLowerEL) | ESR_EL1.matches_all(ESR_EL1::EC::DataAbortLowerEL) {
+    // maybe page fault
+    panic!("EL0 abort")
+  } else {
+    let ec = ESR_EL1.read(ESR_EL1::EC);
+    println!("lower_aarch64_synchronous ec {:06b}", ec);
+  }
 }
 
 #[no_mangle]

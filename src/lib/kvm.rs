@@ -1,4 +1,3 @@
-use register::*;
 use super::vm_descriptor::*;
 
 #[derive(Copy, Clone)]

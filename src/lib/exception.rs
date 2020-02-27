@@ -109,6 +109,7 @@ unsafe extern "C" fn lower_aarch64_synchronous() {
 unsafe extern "C" fn lower_aarch64_irq() {
   println!("lower_aarch64_irq");
   crate::driver::timer::timer_next(0);
+  super::process::process_schedule();
 }
 
 #[no_mangle]

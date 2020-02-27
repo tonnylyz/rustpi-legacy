@@ -1,6 +1,6 @@
 use lib::uvm::UserPageTable;
 use lib::exception::TrapFrame;
-use core::borrow::Borrow;
+use alloc::vec::Vec;
 
 const PROCESS_NUM_MAX: usize = 128;
 
@@ -8,8 +8,7 @@ const PROCESS_NUM_MAX: usize = 128;
 pub enum ProcessStatus {
   Running,
   Ready,
-  Allocated,
-  Free,
+  NotReady,
 }
 
 // Process Control Block
@@ -18,29 +17,27 @@ struct Process {
   id: u8,
   page_table: Option<UserPageTable>,
   context: Option<TrapFrame>,
-  entry: u64,
   status: ProcessStatus,
 }
 
 global_asm!(include_str!("program.S"));
 
-pub fn process_init() {
-  unsafe {
-    for (i, pcb) in PROCESSES.iter_mut().enumerate() {
-      pcb.id = (i + 1) as u8;
-      pcb.status = ProcessStatus::Free;
-    }
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub struct Pid(u8);
+
+impl core::fmt::Display for Pid {
+  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    write!(f, "[PID: {}]", self.0)
   }
 }
 
-#[derive(Copy, Clone, Debug)]
-pub struct Pid(u8);
-
 impl Pid {
-  pub fn init_context(&self) {
+  pub fn init(&self, arg: u64) {
     let pid = (*self).0;
     unsafe {
-      PROCESSES[pid as usize].context = Some(TrapFrame::default());
+      let mut ctx = TrapFrame::default();
+      ctx.gpr[0] = arg;
+      PROCESSES[pid as usize].context = Some(ctx);
     }
   }
 
@@ -62,11 +59,22 @@ impl Pid {
     }
   }
 
-  pub fn sched(&self) -> ! {
+  pub fn save_context_to_pcb(&self) {
     let pid = (*self).0;
-    extern {
-      fn pop_time_stack() -> !;
+    unsafe {
+      PROCESSES[pid as usize].context = Some(super::exception::TRAP_FRAME);
     }
+  }
+
+  pub fn set_status(&self, status: ProcessStatus) {
+    let pid = (*self).0;
+    unsafe {
+      PROCESSES[pid as usize].status = status;
+    }
+  }
+
+  pub fn sched(&self) {
+    let pid = (*self).0;
     unsafe {
       if PROCESSES[pid as usize].page_table.is_none() {
         panic!("Process page table not exists")
@@ -74,29 +82,62 @@ impl Pid {
       if PROCESSES[pid as usize].context.is_none() {
         panic!("Process context not exists")
       }
+      PROCESSES[pid as usize].status = ProcessStatus::Running;
       PROCESSES[pid as usize].page_table.unwrap().install(pid as u16);
       super::exception::TRAP_FRAME = PROCESSES[pid as usize].context.unwrap();
-      pop_time_stack();
     }
   }
 }
 
 pub fn process_alloc() -> Pid {
   unsafe {
-    for (i, pcb) in PROCESSES.iter_mut().enumerate() {
-      if pcb.status == ProcessStatus::Free {
-        pcb.status = ProcessStatus::Allocated;
-        return Pid(i as u8);
+    let pid = PROCESSES.len() as u8;
+    PROCESSES.push(Process {
+      id: pid,
+      page_table: None,
+      context: None,
+      status: ProcessStatus::NotReady,
+    });
+    Pid(pid)
+  }
+}
+
+pub fn process_current() -> Option<Pid> {
+  unsafe {
+    for (i, p) in PROCESSES.iter().enumerate() {
+      if p.status == ProcessStatus::Running {
+        return Some(Pid(p.id));
       }
     }
   }
-  panic!("PCB exhausted");
+  None
 }
 
-static mut PROCESSES: [Process; PROCESS_NUM_MAX] = [Process {
-  id: 0,
-  page_table: None,
-  context: None,
-  entry: 0,
-  status: ProcessStatus::Free,
-}; PROCESS_NUM_MAX];
+pub fn process_next_ready() -> Option<Pid> {
+  unsafe {
+    for (i, p) in PROCESSES.iter().enumerate() {
+      if p.status == ProcessStatus::Ready {
+        return Some(Pid(p.id));
+      }
+    }
+  }
+  None
+}
+
+pub fn process_schedule() {
+  if let Some(next) = process_next_ready() {
+    if let Some(current) = process_current() {
+      println!("switch from {} to {}", current, next);
+      if current == next {
+        return;
+      }
+      current.set_status(ProcessStatus::Ready); // Running -> Ready
+      current.save_context_to_pcb();
+      next.sched();
+    }
+  } else {
+    return; // no ready process
+  }
+}
+
+static mut PROCESSES: Vec<Process> = Vec::new();

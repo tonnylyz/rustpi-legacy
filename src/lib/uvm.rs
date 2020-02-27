@@ -1,4 +1,3 @@
-use register::*;
 use lib::page_frame::PageFrame;
 use super::vm_descriptor::*;
 

@@ -13,6 +13,7 @@ mod driver;
 mod lib;
 
 use lib::print;
+use lib::process::ProcessStatus;
 
 #[no_mangle]
 #[link_section = ".text.start"]
@@ -56,10 +57,12 @@ pub unsafe fn main() -> ! {
   lib::page_frame::page_frame_init(kernel_end..0x3000_0000);
 
   driver::timer::timer_init();
-  lib::process::process_init();
 
-  let pid = lib::process::process_alloc();
-  pid.init_context();
+  let p1 = lib::process::process_alloc();
+  let p2 = lib::process::process_alloc();
+  p1.init(1);
+  p2.init(1000000000000000);
+
   let upt = lib::uvm::UserPageTable::new(
     lib::page_frame::page_frame_alloc()
   );
@@ -68,6 +71,17 @@ pub unsafe fn main() -> ! {
   }
   let user_program_frame = lib::page_frame::PageFrame::new(user_program_entry as usize & 0xffff_ffff);
   upt.map_frame(0x80000, user_program_frame);
-  pid.set_page_table(upt);
-  pid.sched();
+
+  p1.set_page_table(upt);
+  p2.set_page_table(upt);
+  p1.set_status(ProcessStatus::Ready);
+  p2.set_status(ProcessStatus::Ready);
+
+  p1.sched();
+
+  // el1 -> el0
+  extern {
+    fn pop_time_stack() -> !;
+  }
+  pop_time_stack();
 }

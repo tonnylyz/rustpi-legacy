@@ -1,13 +1,13 @@
 // rCore buddy system allocator
 use buddy_system_allocator::LockedHeap;
 use core::ops::Range;
-use arch::{KERNEL_ADDRESS_START};
+use arch::pa2kva;
 #[global_allocator]
 static HEAP_ALLOCATOR: LockedHeap = LockedHeap::empty();
 
 pub fn init(range: Range<usize>) {
   unsafe {
-    HEAP_ALLOCATOR.lock().init(KERNEL_ADDRESS_START + range.start, range.end - range.start)
+    HEAP_ALLOCATOR.lock().init(pa2kva(range.start), range.end - range.start)
   }
 }
 

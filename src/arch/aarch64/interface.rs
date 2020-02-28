@@ -1,6 +1,9 @@
 // export types and functions
 
-use arch::traits::Arch;
+use arch::traits::{Arch,PageTableImpl};
+use mm::PageFrame;
+
+pub type PageTable = super::page_table::Aarch64PageTable;
 
 pub type ContextFrame = super::exception::Aarch64ContextFrame;
 
@@ -24,6 +27,12 @@ impl Arch for Aarch64Arch {
       fn pop_time_stack() -> !;
     }
     unsafe { pop_time_stack(); }
+  }
+
+  fn get_kernel_page_table(&self) -> PageTable {
+    let directory = super::mmu::kernel_page_table_directory_pa();
+    let frame = PageFrame::new(directory);
+    PageTable::new(frame)
   }
 }
 

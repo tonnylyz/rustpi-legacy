@@ -24,5 +24,5 @@ impl InterruptServiceRoutine for Isr {
   }
 }
 
-// ARCH code use ISR to invoke kernel function
+// ARCH code use crate::lib::isr::ISR to invoke kernel function
 pub static ISR: Isr = Isr;

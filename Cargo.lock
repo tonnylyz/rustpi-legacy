@@ -52,6 +52,7 @@ dependencies = [
  "buddy_system_allocator",
  "cortex-a",
  "register",
+ "spin",
 ]
 
 [[package]]

@@ -6,8 +6,8 @@ SECTIONS
         *(.text.kvm)
         *(.data.kvm)
     }
-    _init_end = ABSOLUTE(.);
-    .text 0xFFFFFF8000000000 + _init_end : AT(_init_end) {
+    INIT_END = ABSOLUTE(.);
+    .text 0xFFFFFF8000000000 + INIT_END : AT(INIT_END) {
         *(.text*)
         *(.user.text)
     }
@@ -23,5 +23,5 @@ SECTIONS
     /DISCARD/ : {
         *(.comment)
     }
-    _kernel_end = .;
+    KERNEL_END = .;
 }

@@ -1,19 +1,22 @@
-use lib::page_frame::PageFrame;
+use super::vm_descriptor::*;
+use crate::mm::*;
 use arch::*;
 
 #[derive(Copy, Clone, Debug)]
-pub struct PageTable {
-  directory: super::page_frame::PageFrame
+pub struct Aarch64PageTable {
+  directory: PageFrame
 }
 
+
 #[repr(C)]
-pub struct Page([u64; 512]);
+struct Page([u64; PAGE_SIZE / 8]);
 
 impl core::convert::From<PageFrame> for *mut Page {
   fn from(frame: PageFrame) -> Self {
     frame.kva() as *mut Page
   }
 }
+
 
 trait VirtualAddress {
   fn flx(&self) -> usize;
@@ -25,15 +28,15 @@ trait VirtualAddress {
 
 impl VirtualAddress for usize {
   fn flx(&self) -> usize {
-    self >> 30 & 0x1ff
+    self >> PAGE_TABLE_L1_SHIFT & (PAGE_SIZE - 1)
   }
 
   fn slx(&self) -> usize {
-    self >> 21 & 0x1ff
+    self >> PAGE_TABLE_L2_SHIFT & (PAGE_SIZE - 1)
   }
 
   fn tlx(&self) -> usize {
-    self >> 12 & 0x1ff
+    self >> PAGE_TABLE_L3_SHIFT & (PAGE_SIZE - 1)
   }
 }
 
@@ -55,14 +58,16 @@ impl PageDescriptor for u64 {
   }
 }
 
-impl PageTable {
-  pub fn new(frame: PageFrame) -> Self {
-    PageTable {
-      directory: frame
+impl PageTableImpl for Aarch64PageTable {
+  fn new(directory: PageFrame) -> Self {
+    Aarch64PageTable {
+      directory
     }
   }
-  pub fn install(&self, asid: u16) {
+  fn install(&self, pid: u16) {
     use cortex_a::{regs::*, *};
+    // TODO: need mapping from pid to ASID
+    let asid = pid;
     unsafe {
       TTBR0_EL1.write(TTBR0_EL1::ASID.val(asid as u64));
       TTBR0_EL1.set_baddr(self.directory.pa() as u64);
@@ -70,16 +75,12 @@ impl PageTable {
       barrier::dsb(barrier::SY);
     }
   }
-  pub fn map_frame(&self, va: usize, frame: PageFrame) {
-    let pa = frame.pa();
-    self.map(va, pa);
-  }
-  pub fn map(&self, va: usize, pa: usize) {
+  fn map(&self, va: usize, pa: usize) {
     unsafe {
       let directory_page: *mut Page = <*mut Page>::from(self.directory);
       let mut fle = (*directory_page).0[va.flx()]; // first level entry
       if !(fle.valid()) {
-        let frame = super::page_frame::page_frame_alloc();
+        let frame = crate::mm::page_pool::alloc();
         fle =
           (TABLE_DESCRIPTOR::NEXT_LEVEL_TABLE_ADDR.val((frame.pa() >> 12) as u64)
             + TABLE_DESCRIPTOR::TYPE::Table
@@ -89,7 +90,7 @@ impl PageTable {
       }
       let mut sle = (*fle.next_level()).0[va.slx()];
       if !(sle.valid()) {
-        let frame = super::page_frame::page_frame_alloc();
+        let frame = crate::mm::page_pool::alloc();
         sle =
           (TABLE_DESCRIPTOR::NEXT_LEVEL_TABLE_ADDR.val((frame.pa() >> 12) as u64)
             + TABLE_DESCRIPTOR::TYPE::Table
@@ -113,5 +114,13 @@ impl PageTable {
           ).value;
       }
     }
+  }
+  fn map_frame(&self, va: usize, frame: PageFrame) {
+    let pa = frame.pa();
+    self.map(va, pa);
+  }
+
+  fn unmap(&self, va: usize) {
+    unimplemented!()
   }
 }

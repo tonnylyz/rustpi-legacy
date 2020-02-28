@@ -5,6 +5,17 @@ pub trait ContextFrameImpl {
   fn system_call_set_return_value(&mut self, v: usize);
 }
 
+use crate::mm::PageFrame;
+use arch::PageTable;
+
+pub trait PageTableImpl {
+  fn new(directory: PageFrame) -> Self;
+  fn install(&self, pid: u16);
+  fn map(&self, va: usize, pa: usize);
+  fn map_frame(&self, va: usize, frame: PageFrame);
+  fn unmap(&self, va: usize);
+}
+
 pub trait Arch {
   fn exception_init(&self);
 
@@ -14,4 +25,6 @@ pub trait Arch {
   // context filled in CONTEXT_FRAME, and its
   // page table installed at low address space.
   fn start_first_process(&self) -> !;
+
+  fn get_kernel_page_table(&self) -> PageTable;
 }

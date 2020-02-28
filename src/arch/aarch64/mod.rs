@@ -9,6 +9,3 @@ mod page_table;
 // Export config & interface
 pub use self::config::*;
 pub use self::interface::*;
-
-// TODO: move this
-pub use self::vm_descriptor::*; // use in lib::uvm

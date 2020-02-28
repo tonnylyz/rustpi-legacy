@@ -1,8 +1,8 @@
 use core::fmt;
 
-pub struct Writer {}
+pub struct Writer;
 
-static mut WRITER: Writer = Writer {};
+static mut WRITER: Writer = Writer;
 
 impl Writer {
   pub fn write_byte(&mut self, byte: u8) {

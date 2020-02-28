@@ -2,7 +2,7 @@
 
 .macro VECTOR handler
     str x30, [sp, #-16]!
-    ldr x30, =TRAP_FRAME
+    ldr x30, =CONTEXT_FRAME
     stp x0, x1,  [x30], #16
     stp x2, x3,  [x30], #16
     stp x4, x5,  [x30], #16
@@ -85,7 +85,7 @@ vectors:
 
 .global pop_time_stack
 pop_time_stack:
-    ldr x30, =TRAP_FRAME
+    ldr x30, =CONTEXT_FRAME
     ldr x0, [x30, #(31 * 8)] // spsr
     ldr x1, [x30, #(32 * 8)] // elr
     ldr x2, [x30, #(33 * 8)] // sp

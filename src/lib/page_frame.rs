@@ -1,5 +1,6 @@
 use alloc::vec::Vec;
 use core::ops::Range;
+use arch::*;
 
 #[derive(Clone, Copy, Debug)]
 pub struct PageFrame {
@@ -13,16 +14,16 @@ impl PageFrame {
     }
   }
   pub fn ppn(&self) -> usize {
-    self.pa >> 12
+    self.pa >> SHIFT_4KB
   }
   pub fn kva(&self) -> usize {
-    self.pa | 0xFFFFFF8000000000
+    crate::arch::pa2kva(self.pa)
   }
   pub fn pa(&self) -> usize {
     self.pa
   }
   pub fn zero(&self) {
-    for p in (self.kva()..self.kva() + 4096).step_by(8) {
+    for p in (self.kva()..self.kva() + PAGE_SIZE).step_by(8) {
       let p = p as *mut u64;
       unsafe {
         *p = 0;
@@ -46,8 +47,8 @@ pub fn page_frame_alloc() -> PageFrame {
 
 static mut PAGE_FRAMES: Vec<PageFrame> = Vec::new();
 
-pub fn page_frame_init(range: Range<usize>) {
-  for i in range.step_by(4096) {
+pub fn init(range: Range<usize>) {
+  for i in range.step_by(PAGE_SIZE) {
     unsafe {
       PAGE_FRAMES.push(PageFrame::new(i));
     }

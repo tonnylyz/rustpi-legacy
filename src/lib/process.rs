@@ -1,8 +1,6 @@
-use lib::uvm::UserPageTable;
-use lib::exception::TrapFrame;
+use lib::uvm::PageTable;
 use alloc::vec::Vec;
-
-const PROCESS_NUM_MAX: usize = 128;
+use arch::{ContextFrame, ContextFrameImpl, CONTEXT_FRAME};
 
 #[derive(Eq, PartialEq, Copy, Clone)]
 pub enum ProcessStatus {
@@ -15,8 +13,8 @@ pub enum ProcessStatus {
 #[derive(Copy, Clone)]
 struct Process {
   id: u8,
-  page_table: Option<UserPageTable>,
-  context: Option<TrapFrame>,
+  page_table: Option<PageTable>,
+  context: Option<ContextFrame>,
   status: ProcessStatus,
 }
 
@@ -35,24 +33,24 @@ impl Pid {
   pub fn init(&self, arg: u64) {
     let pid = (*self).0;
     unsafe {
-      let mut ctx = TrapFrame::default();
+      let mut ctx = ContextFrame::default();
       ctx.gpr[0] = arg;
       PROCESSES[pid as usize].context = Some(ctx);
     }
   }
 
-  pub fn set_page_table(&self, upt: UserPageTable) {
+  pub fn set_page_table(&self, page_table: PageTable) {
     let pid = (*self).0;
     unsafe {
-      PROCESSES[pid as usize].page_table = Some(upt);
+      PROCESSES[pid as usize].page_table = Some(page_table);
     }
   }
 
-  pub fn get_page_table(&self) -> UserPageTable {
+  pub fn get_page_table(&self) -> PageTable {
     let pid = (*self).0;
     unsafe {
-      if let Some(upt) = PROCESSES[pid as usize].page_table {
-        upt
+      if let Some(page_table) = PROCESSES[pid as usize].page_table {
+        page_table
       } else {
         panic!("Page table not set");
       }
@@ -62,7 +60,7 @@ impl Pid {
   pub fn save_context_to_pcb(&self) {
     let pid = (*self).0;
     unsafe {
-      PROCESSES[pid as usize].context = Some(super::exception::TRAP_FRAME);
+      PROCESSES[pid as usize].context = Some(CONTEXT_FRAME);
     }
   }
 
@@ -84,7 +82,7 @@ impl Pid {
       }
       PROCESSES[pid as usize].status = ProcessStatus::Running;
       PROCESSES[pid as usize].page_table.unwrap().install(pid as u16);
-      super::exception::TRAP_FRAME = PROCESSES[pid as usize].context.unwrap();
+      CONTEXT_FRAME = PROCESSES[pid as usize].context.unwrap();
     }
   }
 }
@@ -104,7 +102,7 @@ pub fn process_alloc() -> Pid {
 
 pub fn process_current() -> Option<Pid> {
   unsafe {
-    for (i, p) in PROCESSES.iter().enumerate() {
+    for (_i, p) in PROCESSES.iter().enumerate() {
       if p.status == ProcessStatus::Running {
         return Some(Pid(p.id));
       }
@@ -115,7 +113,7 @@ pub fn process_current() -> Option<Pid> {
 
 pub fn process_next_ready() -> Option<Pid> {
   unsafe {
-    for (i, p) in PROCESSES.iter().enumerate() {
+    for (_i, p) in PROCESSES.iter().enumerate() {
       if p.status == ProcessStatus::Ready {
         return Some(Pid(p.id));
       }

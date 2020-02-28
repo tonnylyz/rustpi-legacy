@@ -1,8 +1,8 @@
 use lib::page_frame::PageFrame;
-use super::vm_descriptor::*;
+use arch::*;
 
 #[derive(Copy, Clone, Debug)]
-pub struct UserPageTable {
+pub struct PageTable {
   directory: super::page_frame::PageFrame
 }
 
@@ -55,9 +55,9 @@ impl PageDescriptor for u64 {
   }
 }
 
-impl UserPageTable {
+impl PageTable {
   pub fn new(frame: PageFrame) -> Self {
-    UserPageTable {
+    PageTable {
       directory: frame
     }
   }

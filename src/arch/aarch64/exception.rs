@@ -10,40 +10,42 @@ global_asm!(include_str!("exception.S"));
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub struct TrapFrame {
+pub struct Aarch64ContextFrame {
   pub gpr: [u64; 31],
   pub spsr: u64,
   pub elr: u64,
   pub sp: u64,
 }
 
-impl TrapFrame {
-  pub fn default() -> Self {
-    TrapFrame {
+impl crate::arch::traits::ContextFrameImpl for Aarch64ContextFrame {
+  fn default() -> Self {
+    Aarch64ContextFrame {
       gpr: [0; 31],
       spsr: (SPSR_EL1::M::EL0t + SPSR_EL1::I::Unmasked).value as u64,
       elr: 0x80000,
       sp: 0x8000_0000,
     }
   }
+
+  fn system_call_argument(&self, i: usize) -> usize {
+    const AARCH64_SYSCALL_ARG_LIMIT: usize = 8;
+    if i > AARCH64_SYSCALL_ARG_LIMIT {
+      panic!("Fetch argument index exceeds limit {}/{}", i, AARCH64_SYSCALL_ARG_LIMIT);
+    }
+    // x0 ~ x7
+    self.gpr[i] as usize
+  }
+
+  fn system_call_number(&self) -> usize {
+    // x8
+    self.gpr[8] as usize
+  }
+
+  fn system_call_set_return_value(&mut self, v: usize) {
+    // x0
+    self.gpr[0] = v as u64;
+  }
 }
-
-//#[repr(transparent)]
-//struct SpsrEl1(LocalRegisterCopy<u32, SPSR_EL1::Register>);
-//
-//impl core::convert::From<u64> for SpsrEl1 {
-//  fn from(r: u64) -> Self {
-//    SpsrEl1(LocalRegisterCopy::new(r as u32))
-//  }
-//}
-
-#[no_mangle]
-pub static mut TRAP_FRAME: TrapFrame = TrapFrame {
-  gpr: [0; 31],
-  spsr: 0,
-  elr: 0,
-  sp: 0,
-};
 
 //--------------------------------------------------------------------------------------------------
 // Current, EL0
@@ -76,10 +78,7 @@ unsafe extern "C" fn current_elx_synchronous() {
 
 #[no_mangle]
 unsafe extern "C" fn current_elx_irq() {
-  println!("current_elx_irq");
-  println!("elr {:016x}", TRAP_FRAME.elr);
-  println!("sp {:016x}", TRAP_FRAME.sp);
-  loop {}
+  panic!("current_elx_irq");
 }
 
 #[no_mangle]
@@ -93,31 +92,31 @@ unsafe extern "C" fn current_elx_serror() {
 
 #[no_mangle]
 unsafe extern "C" fn lower_aarch64_synchronous() {
+  use crate::lib::isr::*;
   if ESR_EL1.matches_all(ESR_EL1::EC::SVC64) {
-    // system call (treat as an print i)
-    println!("{}", TRAP_FRAME.gpr[0]);
+    ISR.system_call();
   } else if ESR_EL1.matches_all(ESR_EL1::EC::InstrAbortLowerEL) | ESR_EL1.matches_all(ESR_EL1::EC::DataAbortLowerEL) {
-    // maybe page fault
-    panic!("EL0 abort")
+    ISR.page_fault();
   } else {
-    let ec = ESR_EL1.read(ESR_EL1::EC);
-    println!("lower_aarch64_synchronous ec {:06b}", ec);
+    //let ec = ESR_EL1.read(ESR_EL1::EC);
+    //panic!("lower_aarch64_synchronous ec {:06b}", ec);
+    ISR.default();
   }
 }
 
 #[no_mangle]
 unsafe extern "C" fn lower_aarch64_irq() {
-  println!("lower_aarch64_irq");
-  crate::driver::timer::timer_next(0);
-  super::process::process_schedule();
+  use crate::lib::isr::*;
+  ISR.interrupt_request();
 }
 
 #[no_mangle]
 unsafe extern "C" fn lower_aarch64_serror() {
-  panic!("lower_aarch64_serror");
+  use crate::lib::isr::*;
+  ISR.default();
 }
 
-pub fn exception_init() {
+pub fn init() {
   extern "C" {
     static mut vectors: u64;
   }

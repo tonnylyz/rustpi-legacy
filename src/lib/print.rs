@@ -45,7 +45,7 @@ macro_rules! println {
 #[panic_handler]
 fn panic_handler(info: &core::panic::PanicInfo) -> ! {
   if let Some(m) = info.message() {
-    println!("\nKernel panic: {}", m);
+    println!("\nKernel panic: {} \n {}", m, info.location().unwrap());
   } else {
     println!("\nKernel panic!");
   }

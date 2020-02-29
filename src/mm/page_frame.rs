@@ -7,6 +7,7 @@ pub struct PageFrame {
 
 impl PageFrame {
   pub fn new(pa: usize) -> Self {
+    if pa % PAGE_SIZE != 0 { panic!("PageFrame malicious page frame construct") }
     PageFrame {
       pa,
     }

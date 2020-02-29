@@ -5,75 +5,103 @@ use mm::*;
 use spin::Mutex;
 
 pub type PageRefCount = u32;
-type PagePoolItem = Option<PageRefCount>;
+pub type PagePoolItem = Option<PageRefCount>;
 
-struct PagePool(Mutex<Vec<PagePoolItem>>);
+struct PagePool {
+  start: Option<usize>,
+  end: Option<usize>,
+  vec: Vec<PagePoolItem>,
+}
 
-impl PagePool {
-  fn pa2index(&self, pa: usize) -> usize {
-    if !crate::config::paged_range().contains(&pa) {
-      panic!("PagePool pa2index out of index");
+pub trait PagePoolImpl {
+  fn init(&mut self, range: Range<usize>);
+  fn alloc(&mut self) -> PageFrame;
+  fn free(&mut self, frame: PageFrame) -> Result<(),()>;
+}
+
+impl PagePoolImpl for PagePool {
+
+  fn init(&mut self, range: Range<usize>) {
+    self.start.replace(range.start);
+    self.end.replace(range.end);
+    for _ in range.step_by(PAGE_SIZE) {
+      self.vec.push(PagePoolItem::None);
     }
-    let start = crate::config::paged_range().start;
-    (pa - start) / PAGE_SIZE
   }
 
-  fn index2pa(&self, index: usize) -> usize {
-    let start = crate::config::paged_range().start;
-    index * PAGE_SIZE + start
-  }
-
-  pub fn alloc(&self) -> PageFrame {
-    let mut vec = self.0.lock();
-    for (i, item) in vec.iter_mut().enumerate() {
+  fn alloc(&mut self) -> PageFrame {
+    for (i, item) in self.vec.iter_mut().enumerate() {
       if item.is_none() {
         item.replace(0);
-        drop(vec);
-        return PageFrame::new(self.index2pa(i));
+        return PageFrame::new(self.start.unwrap() + i * PAGE_SIZE);
       }
     }
     panic!("PagePool exhausted");
   }
 
-  pub fn free(&self, frame: PageFrame) -> bool {
-    let i = self.pa2index(frame.pa());
-    let mut vec = self.0.lock();
-    if let Some(0) = vec[i] {
-      vec[i].take();
-      drop(vec);
-      return true;
+  fn free(&mut self, frame: PageFrame) -> Result<(),()> {
+    if !self.in_range(frame.pa()) {
+      panic!("PagePool free frame not managed");
     }
-    drop(vec);
-    return false;
-  }
-
-  pub fn init(&self, range: Range<usize>) {
-    let mut vec =self.0.lock();
-    for _ in range.step_by(PAGE_SIZE) {
-      vec.push(PagePoolItem::None);
+    let i = (frame.pa() - self.start.unwrap()) / PAGE_SIZE;
+    if let Some(0) = self.vec[i] {
+      self.vec[i].take();
+      Ok(())
+    } else {
+      Err(())
     }
-    drop(vec);
   }
 
-  pub fn get_ref_count(&self, frame: PageFrame) -> PageRefCount {
-    unimplemented!()
+}
+
+impl PagePool {
+  pub const fn new() -> Self {
+    PagePool {
+      start: None,
+      end: None,
+      vec: Vec::new(),
+    }
   }
 
-  pub fn add_ref_count(&self, frame: PageFrame, incresement: PageRefCount) {
-    unimplemented!()
+  pub fn in_range(&self, pa: usize) -> bool {
+    (self.start.unwrap()..self.end.unwrap()).contains(&pa)
+  }
+
+  pub fn get_ref_count(&self, frame: PageFrame) -> PagePoolItem {
+    if !self.in_range(frame.pa()) {
+      panic!("PagePool free frame not managed");
+    }
+    let i = (frame.pa() - self.start.unwrap()) / PAGE_SIZE;
+    self.vec[i].clone()
+  }
+
+  pub fn add_ref_count(&mut self, frame: PageFrame, delta: u32) {
+    if !self.in_range(frame.pa()) {
+      panic!("PagePool free frame not managed");
+    }
+    let i = (frame.pa() - self.start.unwrap()) / PAGE_SIZE;
+    let before = self.vec[i].take().unwrap();
+    self.vec[i].replace(before + delta);
   }
 }
 
-static PAGE_POOL: PagePool = PagePool(Mutex::new(Vec::new()));
+static PAGE_POOL: Mutex<PagePool> = Mutex::new(PagePool::new());
 
 pub fn init(range: Range<usize>) {
-  PAGE_POOL.init(range);
+  let mut pool = PAGE_POOL.lock();
+  pool.init(range);
+  drop(pool);
 }
 
 pub fn alloc() -> PageFrame {
-  PAGE_POOL.alloc()
+  let mut pool = PAGE_POOL.lock();
+  let r = pool.alloc();
+  drop(pool);
+  return r;
 }
 
 pub fn free(frame: PageFrame) {
-  PAGE_POOL.free(frame);
+  let mut pool = PAGE_POOL.lock();
+  pool.free(frame);
+  drop(pool);
 }

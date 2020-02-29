@@ -140,7 +140,3 @@ pub unsafe extern "C" fn init() {
   SCTLR_EL1.modify(SCTLR_EL1::M::Enable + SCTLR_EL1::C::NonCacheable + SCTLR_EL1::I::NonCacheable);
   barrier::isb(barrier::SY);
 }
-
-pub fn kernel_page_table_directory_pa() -> usize {
-  unsafe {TABLES.lvl1.base_addr_usize()}
-}

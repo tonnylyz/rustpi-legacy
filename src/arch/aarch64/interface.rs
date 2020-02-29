@@ -30,8 +30,7 @@ impl Arch for Aarch64Arch {
   }
 
   fn get_kernel_page_table(&self) -> PageTable {
-    let directory = super::mmu::kernel_page_table_directory_pa();
-    let frame = PageFrame::new(directory);
+    let frame = PageFrame::new(cortex_a::regs::TTBR1_EL1.get_baddr() as usize);
     PageTable::new(frame)
   }
 }

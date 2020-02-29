@@ -16,6 +16,19 @@ register_bitfields! {u64,
 
 register_bitfields! {u64,
     pub PAGE_DESCRIPTOR [
+    // Note: LIB and COW are software-defined bits
+        LIB      OFFSET(56) NUMBITS(1) [
+            False = 0,
+            True = 1
+        ],
+        COW      OFFSET(55) NUMBITS(1) [
+            False = 0,
+            True = 1
+        ],
+        UXN      OFFSET(54) NUMBITS(1) [
+            False = 0,
+            True = 1
+        ],
         PXN      OFFSET(53) NUMBITS(1) [
             False = 0,
             True = 1

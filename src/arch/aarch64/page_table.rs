@@ -58,6 +58,38 @@ impl PageDescriptor for u64 {
   }
 }
 
+impl core::convert::From<PageTableEntry> for u64 {
+  fn from(pte: PageTableEntry) -> Self {
+    (
+      if pte.attr.library { PAGE_DESCRIPTOR::LIB::True } else { PAGE_DESCRIPTOR::LIB::False } +
+        if pte.attr.cow { PAGE_DESCRIPTOR::COW::True } else { PAGE_DESCRIPTOR::COW::False } +
+        if pte.attr.cap_user.x { PAGE_DESCRIPTOR::UXN::False } else { PAGE_DESCRIPTOR::UXN::True } +
+        if pte.attr.cap_kernel.x { PAGE_DESCRIPTOR::PXN::False } else { PAGE_DESCRIPTOR::PXN::True } +
+        if pte.attr.device {
+          PAGE_DESCRIPTOR::SH::OuterShareable + PAGE_DESCRIPTOR::AttrIndx::DEVICE
+        } else {
+          PAGE_DESCRIPTOR::SH::InnerShareable + PAGE_DESCRIPTOR::AttrIndx::NORMAL
+        } +
+        if pte.attr.cap_kernel.r && pte.attr.cap_kernel.w && pte.attr.cap_user.r && pte.attr.cap_user.w {
+          PAGE_DESCRIPTOR::AP::RW_EL1_EL0
+        } else if pte.attr.cap_kernel.r && pte.attr.cap_kernel.w && !pte.attr.cap_user.r && !pte.attr.cap_user.w {
+          PAGE_DESCRIPTOR::AP::RW_EL1
+        } else if pte.attr.cap_kernel.r && !pte.attr.cap_kernel.w && pte.attr.cap_user.r && !pte.attr.cap_user.w {
+          PAGE_DESCRIPTOR::AP::RO_EL1_EL0
+        } else if pte.attr.cap_kernel.r && !pte.attr.cap_kernel.w && !pte.attr.cap_user.r && !pte.attr.cap_user.w {
+          PAGE_DESCRIPTOR::AP::RO_EL1
+        } else { // default
+          //PAGE_DESCRIPTOR::AP::RW_EL1
+          panic!("PageTable: permission mode not support")
+        }
+        + PAGE_DESCRIPTOR::TYPE::Table
+        + PAGE_DESCRIPTOR::VALID::True
+        + PAGE_DESCRIPTOR::OUTPUT_ADDR.val((pte.addr >> 12) as u64)
+        + PAGE_DESCRIPTOR::AF::True
+    ).value
+  }
+}
+
 impl PageTableImpl for Aarch64PageTable {
   fn new(directory: PageFrame) -> Self {
     Aarch64PageTable {
@@ -75,7 +107,7 @@ impl PageTableImpl for Aarch64PageTable {
       barrier::dsb(barrier::SY);
     }
   }
-  fn map(&self, va: usize, pa: usize) {
+  fn map(&self, va: usize, pa: usize, attr: PteAttribute) {
     unsafe {
       let directory_page: *mut Page = <*mut Page>::from(self.directory);
       let mut fle = (*directory_page).0[va.flx()]; // first level entry
@@ -102,22 +134,17 @@ impl PageTableImpl for Aarch64PageTable {
       if tle.valid() {
         panic!("va already mapped")
       } else {
-        (*sle.next_level()).0[va.tlx()] =
-          (PAGE_DESCRIPTOR::PXN::True
-            + PAGE_DESCRIPTOR::OUTPUT_ADDR.val((pa >> 12) as u64)
-            + PAGE_DESCRIPTOR::AF::True
-            + PAGE_DESCRIPTOR::SH::InnerShareable
-            + PAGE_DESCRIPTOR::AP::RW_EL1_EL0
-            + PAGE_DESCRIPTOR::AttrIndx::NORMAL
-            + PAGE_DESCRIPTOR::TYPE::Table
-            + PAGE_DESCRIPTOR::VALID::True
-          ).value;
+        (*sle.next_level()).0[va.tlx()] = u64::from(PageTableEntry {
+          attr,
+          addr: pa,
+        })
+        ;
       }
     }
   }
-  fn map_frame(&self, va: usize, frame: PageFrame) {
+  fn map_frame(&self, va: usize, frame: PageFrame, attr: PteAttribute) {
     let pa = frame.pa();
-    self.map(va, pa);
+    self.map(va, pa, attr);
   }
 
   fn unmap(&self, va: usize) {

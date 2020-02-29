@@ -46,7 +46,7 @@ pub unsafe fn main() -> ! {
     fn user_program_entry();
   }
   let user_program_frame = mm::PageFrame::new(user_program_entry as usize & 0xffff_ffff);
-  page_table.map_frame(0x80000, user_program_frame);
+  page_table.map_frame(0x80000, user_program_frame, PteAttribute::default());
 
   p1.set_page_table(page_table);
   p2.set_page_table(page_table);

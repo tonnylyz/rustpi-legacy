@@ -28,15 +28,15 @@ trait VirtualAddress {
 
 impl VirtualAddress for usize {
   fn flx(&self) -> usize {
-    self >> PAGE_TABLE_L1_SHIFT & (PAGE_SIZE - 1)
+    self >> PAGE_TABLE_L1_SHIFT & (PAGE_SIZE / 8 - 1)
   }
 
   fn slx(&self) -> usize {
-    self >> PAGE_TABLE_L2_SHIFT & (PAGE_SIZE - 1)
+    self >> PAGE_TABLE_L2_SHIFT & (PAGE_SIZE / 8 - 1)
   }
 
   fn tlx(&self) -> usize {
-    self >> PAGE_TABLE_L3_SHIFT & (PAGE_SIZE - 1)
+    self >> PAGE_TABLE_L3_SHIFT & (PAGE_SIZE / 8 - 1)
   }
 }
 

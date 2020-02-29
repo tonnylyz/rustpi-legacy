@@ -31,10 +31,6 @@ unsafe extern "C" fn _start() -> ! {
 #[link_section = ".text.kvm"]
 unsafe fn el1_start() -> ! {
   use cortex_a::regs::*;
-  // TODO: move this out
-  // address over 0x4000_0000 (1GB) will not be mapped.
-  // access before MMU enabled
-  core::intrinsics::volatile_store(0x4000_0040 as *mut u8, 0b1111); // timer irq control
   super::mmu::init();
   SP.set(pa2kva(BOARD.kernel_stack_top()) as u64);
   crate::main();

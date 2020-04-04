@@ -1,4 +1,4 @@
-.equ KERNEL_STACK_TOP, 0xFFFFFF8000080000
+#.equ KERNEL_STACK_TOP, 0xFFFFFF8000080000
 
 .macro VECTOR handler
     str x30, [sp, #-16]!
@@ -27,8 +27,8 @@
     mrs x1, sp_el0
     stp x0, x1, [x30], #16
 
-    ldr x0, =KERNEL_STACK_TOP
-    mov sp, x0
+    #ldr x0, =KERNEL_STACK_TOP
+    #mov sp, x0
     bl  \handler
     b   pop_time_stack
 .endm

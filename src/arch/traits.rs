@@ -10,7 +10,9 @@ use arch::PageTable;
 
 #[derive(Copy, Clone)]
 pub struct PtePermission {
-  pub r: bool, pub w: bool, pub x: bool
+  pub r: bool,
+  pub w: bool,
+  pub x: bool,
 }
 
 #[derive(Copy, Clone)]
@@ -31,13 +33,22 @@ pub struct PageTableEntry {
 }
 
 impl PteAttribute {
-  pub fn default() -> Self {
+  pub const fn user_default() -> Self {
     PteAttribute {
-      cap_kernel: PtePermission {r: true, w: true, x: true},
-      cap_user: PtePermission {r: true, w: true, x: true},
+      cap_kernel: PtePermission { r: true, w: true, x: true },
+      cap_user: PtePermission { r: true, w: true, x: true },
       cow: false,
       library: false,
-      device: false
+      device: false,
+    }
+  }
+  pub const fn kernel_device_default() -> Self {
+    PteAttribute {
+      cap_kernel: PtePermission { r: true, w: true, x: false },
+      cap_user: PtePermission { r: false, w: false, x: false },
+      cow: false,
+      library: false,
+      device: true,
     }
   }
 }

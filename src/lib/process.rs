@@ -17,8 +17,6 @@ struct Process {
   status: ProcessStatus,
 }
 
-global_asm!(include_str!("program.S"));
-
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct Pid(u8);
 
@@ -29,11 +27,12 @@ impl core::fmt::Display for Pid {
 }
 
 impl Pid {
-  pub fn init(&self, arg: u64) {
+  pub fn init(&self, arg: usize, entry_point: usize) {
     let pid = (*self).0;
     unsafe {
       let mut ctx = ContextFrame::default();
-      ctx.gpr[0] = arg;
+      ctx.gpr[0] = arg as u64;
+      ctx.elr = entry_point as u64;
       PROCESSES[pid as usize].context = Some(ctx);
     }
   }

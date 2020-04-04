@@ -2,9 +2,9 @@
 # It is not intended for manual editing.
 [[package]]
 name = "buddy_system_allocator"
-version = "0.3.6"
+version = "0.3.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d2a9554af8305f02f66e447ff1838f12c0798b3924b059dd00e637017fa2f02a"
+checksum = "09072aa89a810228c822e132e4639ff17bab014ba5b2dce5270a6331ff1963ca"
 dependencies = [
  "rustversion",
  "spin",
@@ -53,6 +53,7 @@ dependencies = [
  "cortex-a",
  "register",
  "spin",
+ "xmas-elf",
 ]
 
 [[package]]
@@ -94,3 +95,18 @@ name = "unicode-xid"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "826e7639553986605ec5979c7dd957c7895e93eabed50ab2ffa7f6128a75097c"
+
+[[package]]
+name = "xmas-elf"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e74de9a366f6ab8c405fa6b371d9ac24943921fa14b3d64afcb202065c405f11"
+dependencies = [
+ "zero",
+]
+
+[[package]]
+name = "zero"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5f1bc8a6b2005884962297587045002d8cfb8dcec9db332f4ca216ddc5de82c5"

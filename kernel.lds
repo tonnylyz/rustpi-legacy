@@ -9,7 +9,6 @@ SECTIONS
     INIT_END = ABSOLUTE(.);
     .text 0xFFFFFF8000000000 + INIT_END : AT(INIT_END) {
         *(.text*)
-        *(.user.text)
     }
     .rodata : {
         *(.rodata*)

@@ -79,7 +79,7 @@ impl Pid {
         panic!("Process context not exists")
       }
       PROCESSES[pid as usize].status = ProcessStatus::Running;
-      PROCESSES[pid as usize].page_table.unwrap().install(pid as u16);
+      crate::arch::ARCH.set_user_page_table(PROCESSES[pid as usize].page_table.unwrap(), pid as AddressSpaceId);
       CONTEXT_FRAME = PROCESSES[pid as usize].context.unwrap();
     }
   }

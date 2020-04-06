@@ -73,7 +73,7 @@ unsafe extern "C" fn current_el0_serror() {
 /// Asynchronous exception taken from the current EL, using SP of the current EL.
 #[no_mangle]
 unsafe extern "C" fn current_elx_synchronous() {
-  panic!("current_elx_synchronous");
+  panic!("current_elx_synchronous {:016x}", cortex_a::regs::FAR_EL1.get());
 }
 
 #[no_mangle]

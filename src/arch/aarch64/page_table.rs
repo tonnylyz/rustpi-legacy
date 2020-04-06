@@ -7,87 +7,105 @@ pub struct Aarch64PageTable {
   directory: PageFrame
 }
 
-
-#[repr(C)]
-struct Page([u64; PAGE_SIZE / 8]);
-
-impl core::convert::From<PageFrame> for *mut Page {
-  fn from(frame: PageFrame) -> Self {
-    frame.kva() as *mut Page
-  }
-}
-
-
 trait VirtualAddress {
-  fn flx(&self) -> usize;
-  // first level index
-  fn slx(&self) -> usize;
-  // second level index
-  fn tlx(&self) -> usize; // third level index
+  fn l1x(&self) -> usize;
+  fn l2x(&self) -> usize;
+  fn l3x(&self) -> usize;
 }
 
 impl VirtualAddress for usize {
-  fn flx(&self) -> usize {
+  fn l1x(&self) -> usize {
     self >> PAGE_TABLE_L1_SHIFT & (PAGE_SIZE / 8 - 1)
   }
-
-  fn slx(&self) -> usize {
+  fn l2x(&self) -> usize {
     self >> PAGE_TABLE_L2_SHIFT & (PAGE_SIZE / 8 - 1)
   }
-
-  fn tlx(&self) -> usize {
+  fn l3x(&self) -> usize {
     self >> PAGE_TABLE_L3_SHIFT & (PAGE_SIZE / 8 - 1)
   }
 }
 
-trait PageDescriptor {
+#[repr(transparent)]
+#[derive(Copy, Clone, Debug)]
+struct TableDescriptor(u64);
+
+trait Descriptor {
   fn valid(&self) -> bool;
-  fn next_level(&self) -> *mut Page;
+  fn get_entry(&self, index: usize) -> Self;
+  fn set_entry(&self, index: usize, value: Self);
 }
 
-impl PageDescriptor for u64 {
+impl Descriptor for TableDescriptor {
   fn valid(&self) -> bool {
-    return self & 0b11 != 0;
+    self.0 & 0b11 != 0
   }
-  fn next_level(&self) -> *mut Page {
-    if !self.valid() {
-      panic!("Invalid page descriptor");
-    }
-    let addr = *self as usize & 0xffff_ffff_f000;
-    (addr | 0xFFFFFF8000000000) as *mut Page
+  fn get_entry(&self, index: usize) -> TableDescriptor {
+    let addr = pa2kva(pte2pa(self.0 as usize) + index * 8);
+    unsafe { TableDescriptor(core::intrinsics::volatile_load(addr as *const u64)) }
+  }
+  fn set_entry(&self, index: usize, value: TableDescriptor) {
+    let addr = pa2kva(pte2pa(self.0 as usize) + index * 8);
+    unsafe { core::intrinsics::volatile_store(addr as *mut u64, value.0) }
   }
 }
 
-impl core::convert::From<PageTableEntry> for u64 {
+impl core::convert::From<TableDescriptor> for PageTableEntry {
+  fn from(u: TableDescriptor) -> Self {
+    use register::*;
+    let reg = LocalRegisterCopy::<u64, PAGE_DESCRIPTOR::Register>::new(u.0);
+    PageTableEntry{
+      attr: PteAttribute {
+        k_w: reg.matches_all(PAGE_DESCRIPTOR::AP::RW_EL1) || reg.matches_all(PAGE_DESCRIPTOR::AP::RW_EL1_EL0),
+        k_x: !reg.is_set(PAGE_DESCRIPTOR::PXN),
+        u_r: reg.matches_all(PAGE_DESCRIPTOR::AP::RW_EL1_EL0) || reg.matches_all(PAGE_DESCRIPTOR::AP::RO_EL1_EL0),
+        u_w: reg.matches_all(PAGE_DESCRIPTOR::AP::RW_EL1_EL0),
+        u_x: !reg.is_set(PAGE_DESCRIPTOR::UXN),
+        copy_on_write: reg.is_set(PAGE_DESCRIPTOR::COW),
+        shared: reg.is_set(PAGE_DESCRIPTOR::LIB),
+        device: reg.matches_all(PAGE_DESCRIPTOR::AttrIndx::DEVICE)
+      },
+      addr: pte2pa(u.0 as usize)
+    }
+  }
+}
+
+impl core::convert::From<PageTableEntry> for TableDescriptor {
   fn from(pte: PageTableEntry) -> Self {
-    (
-      if pte.attr.library { PAGE_DESCRIPTOR::LIB::True } else { PAGE_DESCRIPTOR::LIB::False } +
-        if pte.attr.cow { PAGE_DESCRIPTOR::COW::True } else { PAGE_DESCRIPTOR::COW::False } +
-        if pte.attr.cap_user.x { PAGE_DESCRIPTOR::UXN::False } else { PAGE_DESCRIPTOR::UXN::True } +
-        if pte.attr.cap_kernel.x { PAGE_DESCRIPTOR::PXN::False } else { PAGE_DESCRIPTOR::PXN::True } +
-        if pte.attr.device {
-          PAGE_DESCRIPTOR::SH::OuterShareable + PAGE_DESCRIPTOR::AttrIndx::DEVICE
-        } else {
-          PAGE_DESCRIPTOR::SH::InnerShareable + PAGE_DESCRIPTOR::AttrIndx::NORMAL
-        } +
-        if pte.attr.cap_kernel.r && pte.attr.cap_kernel.w && pte.attr.cap_user.r && pte.attr.cap_user.w {
-          PAGE_DESCRIPTOR::AP::RW_EL1_EL0
-        } else if pte.attr.cap_kernel.r && pte.attr.cap_kernel.w && !pte.attr.cap_user.r && !pte.attr.cap_user.w {
-          PAGE_DESCRIPTOR::AP::RW_EL1
-        } else if pte.attr.cap_kernel.r && !pte.attr.cap_kernel.w && pte.attr.cap_user.r && !pte.attr.cap_user.w {
-          PAGE_DESCRIPTOR::AP::RO_EL1_EL0
-        } else if pte.attr.cap_kernel.r && !pte.attr.cap_kernel.w && !pte.attr.cap_user.r && !pte.attr.cap_user.w {
-          PAGE_DESCRIPTOR::AP::RO_EL1
-        } else { // default
-          //PAGE_DESCRIPTOR::AP::RW_EL1
-          panic!("PageTable: permission mode not support")
-        }
+    TableDescriptor((
+      if pte.attr.shared { PAGE_DESCRIPTOR::LIB::True } else { PAGE_DESCRIPTOR::LIB::False }
+        + if pte.attr.copy_on_write { PAGE_DESCRIPTOR::COW::True } else { PAGE_DESCRIPTOR::COW::False }
+        + if pte.attr.u_x { PAGE_DESCRIPTOR::UXN::False } else { PAGE_DESCRIPTOR::UXN::True }
+        + if pte.attr.k_x { PAGE_DESCRIPTOR::PXN::False } else { PAGE_DESCRIPTOR::PXN::True }
+        + if pte.attr.device {
+        PAGE_DESCRIPTOR::SH::OuterShareable + PAGE_DESCRIPTOR::AttrIndx::DEVICE
+      } else {
+        PAGE_DESCRIPTOR::SH::InnerShareable + PAGE_DESCRIPTOR::AttrIndx::NORMAL
+      }
+        + if pte.attr.k_w && pte.attr.u_w {
+        PAGE_DESCRIPTOR::AP::RW_EL1_EL0
+      } else if pte.attr.k_w && !pte.attr.u_r && !pte.attr.u_w {
+        PAGE_DESCRIPTOR::AP::RW_EL1
+      } else if !pte.attr.k_w && pte.attr.u_r && !pte.attr.u_w {
+        PAGE_DESCRIPTOR::AP::RO_EL1_EL0
+      } else if !pte.attr.k_w && !pte.attr.u_r && !pte.attr.u_w {
+        PAGE_DESCRIPTOR::AP::RO_EL1
+      } else {
+        panic!("PageTable: permission mode not support")
+      }
         + PAGE_DESCRIPTOR::TYPE::Table
         + PAGE_DESCRIPTOR::VALID::True
         + PAGE_DESCRIPTOR::OUTPUT_ADDR.val((pte.addr >> 12) as u64)
         + PAGE_DESCRIPTOR::AF::True
-    ).value
+    ).value)
   }
+}
+
+fn alloc_page_table() -> TableDescriptor {
+  let frame = crate::mm::page_pool::alloc();
+  TableDescriptor((TABLE_DESCRIPTOR::NEXT_LEVEL_TABLE_ADDR.val((frame.pa() >> 12) as u64)
+    + TABLE_DESCRIPTOR::TYPE::Table
+    + TABLE_DESCRIPTOR::VALID::True
+  ).value)
 }
 
 impl PageTableImpl for Aarch64PageTable {
@@ -96,58 +114,69 @@ impl PageTableImpl for Aarch64PageTable {
       directory
     }
   }
-  fn install(&self, pid: u16) {
-    use cortex_a::{regs::*, *};
-    // TODO: need mapping from pid to ASID
-    let asid = pid;
-    unsafe {
-      TTBR0_EL1.write(TTBR0_EL1::ASID.val(asid as u64));
-      TTBR0_EL1.set_baddr(self.directory.pa() as u64);
-      barrier::isb(barrier::SY);
-      barrier::dsb(barrier::SY);
-    }
+
+  fn directory(&self) -> PageFrame {
+    self.directory
   }
+
   fn map(&self, va: usize, pa: usize, attr: PteAttribute) {
-    unsafe {
-      let directory_page: *mut Page = <*mut Page>::from(self.directory);
-      let mut fle = (*directory_page).0[va.flx()]; // first level entry
-      if !(fle.valid()) {
-        let frame = crate::mm::page_pool::alloc();
-        fle =
-          (TABLE_DESCRIPTOR::NEXT_LEVEL_TABLE_ADDR.val((frame.pa() >> 12) as u64)
-            + TABLE_DESCRIPTOR::TYPE::Table
-            + TABLE_DESCRIPTOR::VALID::True
-          ).value;
-        (*directory_page).0[va.flx()] = fle;
-      }
-      let mut sle = (*fle.next_level()).0[va.slx()];
-      if !(sle.valid()) {
-        let frame = crate::mm::page_pool::alloc();
-        sle =
-          (TABLE_DESCRIPTOR::NEXT_LEVEL_TABLE_ADDR.val((frame.pa() >> 12) as u64)
-            + TABLE_DESCRIPTOR::TYPE::Table
-            + TABLE_DESCRIPTOR::VALID::True
-          ).value;
-        (*fle.next_level()).0[va.slx()] = sle;
-      }
-      let tle = (*sle.next_level()).0[va.tlx()];
-      if tle.valid() {
-        panic!("va already mapped")
-      } else {
-        (*sle.next_level()).0[va.tlx()] = u64::from(PageTableEntry {
-          attr,
-          addr: pa,
-        })
-        ;
-      }
+    if self.is_mapped(va) {
+      panic!("va already mapped")
     }
+    let directory = TableDescriptor(self.directory.pa() as u64);
+    let mut l1e = directory.get_entry(va.l1x());
+    if !l1e.valid() {
+      l1e = alloc_page_table();
+      directory.set_entry(va.l1x(), l1e);
+    }
+    let mut l2e = l1e.get_entry(va.l2x());
+    if !l2e.valid() {
+      l2e = alloc_page_table();
+      l1e.set_entry(va.l2x(), l2e);
+    }
+    l2e.set_entry(va.l3x(), TableDescriptor::from(PageTableEntry {
+      attr,
+      addr: pa,
+    }));
   }
-  fn map_frame(&self, va: usize, frame: PageFrame, attr: PteAttribute) {
+
+  fn insert_page(&self, va: usize, frame: PageFrame, attr: PteAttribute) {
     let pa = frame.pa();
     self.map(va, pa, attr);
   }
 
-  fn unmap(&self, va: usize) {
-    unimplemented!()
+  fn lookup_page(&self, va: usize) -> Option<PageTableEntry> {
+    if !self.is_mapped(va) {
+      return None;
+    }
+    let directory = TableDescriptor(self.directory.pa() as u64);
+    let l1e = directory.get_entry(va.l1x());
+    let l2e = l1e.get_entry(va.l2x());
+    let l3e = l2e.get_entry(va.l3x());
+    Some(PageTableEntry::from(l3e))
+  }
+
+  fn remove_page(&self, va: usize) {
+    if !self.is_mapped(va) {
+      panic!("va not mapped")
+    }
+    let directory = TableDescriptor(self.directory.pa() as u64);
+    let l1e = directory.get_entry(va.l1x());
+    let l2e = l1e.get_entry(va.l2x());
+    l2e.set_entry(va.l3x(), TableDescriptor(0));
+  }
+
+  fn is_mapped(&self, va: usize) -> bool {
+    let directory = TableDescriptor(self.directory.pa() as u64);
+    let l1e = directory.get_entry(va.l1x());
+    if !l1e.valid() {
+      return false;
+    }
+    let l2e = l1e.get_entry(va.l2x());
+    if !l2e.valid() {
+      return false;
+    }
+    let l3e = l2e.get_entry(va.l3x());
+    l3e.valid()
   }
 }

@@ -1,4 +1,4 @@
-use arch::{ARCH, PtePermission, Arch, PteAttribute, PageTableImpl};
+use arch::{ARCH, Arch, PteAttribute, PageTableImpl};
 use driver::mmio::mmio_writeb;
 
 const TIMER_DEFAULT_COUNT: u32 = 10000000;

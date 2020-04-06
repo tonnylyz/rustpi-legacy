@@ -1,4 +1,4 @@
-use arch::{PAGE_SHIFT, PAGE_SIZE};
+use arch::PAGE_SIZE;
 
 #[derive(Clone, Copy, Debug)]
 pub struct PageFrame {
@@ -7,13 +7,10 @@ pub struct PageFrame {
 
 impl PageFrame {
   pub fn new(pa: usize) -> Self {
-    if pa % PAGE_SIZE != 0 { panic!("PageFrame malicious page frame construct") }
+    assert_eq!(pa % PAGE_SIZE, 0);
     PageFrame {
       pa,
     }
-  }
-  pub fn ppn(&self) -> usize {
-    self.pa >> PAGE_SHIFT
   }
   pub fn kva(&self) -> usize {
     crate::arch::pa2kva(self.pa)

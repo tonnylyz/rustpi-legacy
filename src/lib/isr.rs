@@ -1,4 +1,4 @@
-use arch::ContextFrameImpl;
+use cortex_a::regs::RegisterReadWrite;
 
 pub trait InterruptServiceRoutine {
   fn system_call(&self);
@@ -21,7 +21,8 @@ impl InterruptServiceRoutine for Isr {
   }
   fn page_fault(&self) {
     use arch::*;
-    print!("elr: {:016x}", unsafe { CONTEXT_FRAME }.elr);
+    println!("elr: {:016x}", unsafe { CONTEXT_FRAME }.elr);
+    println!("far: {:016x}", cortex_a::regs::FAR_EL1.get());
     panic!("InterruptServiceRoutine: page_fault");
   }
   fn default(&self) {

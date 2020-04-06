@@ -6,27 +6,56 @@ pub trait ContextFrameImpl {
 }
 
 use crate::mm::PageFrame;
-use arch::PageTable;
+use arch::{PageTable, AddressSpaceId};
 
-#[derive(Copy, Clone)]
-pub struct PtePermission {
-  pub r: bool,
-  pub w: bool,
-  pub x: bool,
-}
-
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct PteAttribute {
-  pub cap_kernel: PtePermission,
-  pub cap_user: PtePermission,
-  pub cow: bool,
-  // copy on write
-  pub library: bool,
-  // share when fork
+  // Note: Execute indicates Read, Write indicates Read
+  pub k_w: bool,
+  pub k_x: bool,
+  pub u_r: bool,
+  pub u_w: bool,
+  pub u_x: bool,
+  pub copy_on_write: bool,
+  pub shared: bool,
   pub device: bool,
 }
 
-#[derive(Copy, Clone)]
+impl core::ops::Add for PteAttribute {
+  type Output = PteAttribute;
+
+  fn add(self, rhs: Self) -> Self::Output {
+    PteAttribute{
+      k_w: self.k_w || rhs.k_w,
+      k_x: self.k_x || rhs.k_x,
+      u_r: self.u_r || rhs.u_r,
+      u_w: self.u_w || rhs.u_w,
+      u_x: self.u_x || rhs.u_x,
+      copy_on_write: self.copy_on_write || rhs.copy_on_write,
+      shared: self.shared || rhs.shared,
+      device: self.device || rhs.device
+    }
+  }
+}
+
+impl core::ops::Sub for PteAttribute {
+  type Output = PteAttribute;
+
+  fn sub(self, rhs: Self) -> Self::Output {
+    PteAttribute{
+      k_w: self.k_w && !rhs.k_w,
+      k_x: self.k_x && !rhs.k_x,
+      u_r: self.u_r && !rhs.u_r,
+      u_w: self.u_w && !rhs.u_w,
+      u_x: self.u_x && !rhs.u_x,
+      copy_on_write: self.copy_on_write && !rhs.copy_on_write,
+      shared: self.shared && !rhs.shared,
+      device: self.device && !rhs.device
+    }
+  }
+}
+
+#[derive(Copy, Clone, Debug)]
 pub struct PageTableEntry {
   pub attr: PteAttribute,
   pub addr: usize,
@@ -35,30 +64,62 @@ pub struct PageTableEntry {
 impl PteAttribute {
   pub const fn user_default() -> Self {
     PteAttribute {
-      cap_kernel: PtePermission { r: true, w: true, x: true },
-      cap_user: PtePermission { r: true, w: true, x: true },
-      cow: false,
-      library: false,
+      k_w: true,
+      k_x: false,
+      u_r: true,
+      u_w: true,
+      u_x: true,
+      copy_on_write: false,
+      shared: false,
       device: false,
     }
   }
   pub const fn kernel_device_default() -> Self {
     PteAttribute {
-      cap_kernel: PtePermission { r: true, w: true, x: false },
-      cap_user: PtePermission { r: false, w: false, x: false },
-      cow: false,
-      library: false,
+      k_w: true,
+      k_x: false,
+      u_r: false,
+      u_w: false,
+      u_x: false,
+      copy_on_write: false,
+      shared: false,
       device: true,
+    }
+  }
+  pub const fn copy_on_write() -> Self {
+    PteAttribute {
+      k_w: false,
+      k_x: false,
+      u_r: false,
+      u_w: false,
+      u_x: false,
+      copy_on_write: true,
+      shared: false,
+      device: false,
+    }
+  }
+  pub const fn shared() -> Self {
+    PteAttribute {
+      k_w: false,
+      k_x: false,
+      u_r: false,
+      u_w: false,
+      u_x: false,
+      copy_on_write: false,
+      shared: true,
+      device: false,
     }
   }
 }
 
 pub trait PageTableImpl {
   fn new(directory: PageFrame) -> Self;
-  fn install(&self, pid: u16);
+  fn directory(&self) -> PageFrame;
   fn map(&self, va: usize, pa: usize, attr: PteAttribute);
-  fn map_frame(&self, va: usize, frame: PageFrame, attr: PteAttribute);
-  fn unmap(&self, va: usize);
+  fn insert_page(&self, va: usize, frame: PageFrame, attr: PteAttribute);
+  fn lookup_page(&self, va: usize) -> Option<PageTableEntry>;
+  fn remove_page(&self, va: usize);
+  fn is_mapped(&self, va: usize) -> bool;
 }
 
 pub trait Arch {
@@ -72,4 +133,6 @@ pub trait Arch {
   fn start_first_process(&self) -> !;
 
   fn get_kernel_page_table(&self) -> PageTable;
+  fn get_user_page_table(&self) -> PageTable;
+  fn set_user_page_table(&self, pt: PageTable, asid: AddressSpaceId);
 }

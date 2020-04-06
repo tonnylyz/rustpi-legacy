@@ -107,7 +107,7 @@ pub unsafe extern "C" fn init() {
   for i in PHYSICAL_ADDRESS_LIMIT_GB..ENTRY_PER_PAGE {
     // avoid optimization using memset (over high address)
     // do NOT write TableDescriptor(0)
-    TABLES.lvl1[i] = TableDescriptor((i << 2) as u64);
+    TABLES.lvl1[i] = TableDescriptor((i << 4) as u64);
   }
   MAIR_EL1.write(
     MAIR_EL1::Attr0_HIGH::Memory_OuterWriteBack_NonTransient_ReadAlloc_WriteAlloc

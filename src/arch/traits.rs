@@ -1,14 +1,17 @@
-pub trait ContextFrameImpl {
-  fn default() -> Self;
-  fn system_call_argument(&self, i: usize) -> usize;
-  fn system_call_number(&self) -> usize;
-  fn system_call_set_return_value(&mut self, v: usize);
+pub trait ContextFrameImpl: Default {
+  fn get_syscall_argument(&self, i: usize) -> usize;
+  fn get_syscall_number(&self) -> usize;
+  fn set_syscall_return_value(&mut self, v: usize);
+  fn get_exception_pc(&self) -> usize;
+  fn set_exception_pc(&mut self, pc: usize);
+  fn set_stack_pointer(&mut self, sp: usize);
+  fn set_argument(&mut self, arg: usize);
 }
 
 use crate::mm::PageFrame;
 use arch::{PageTable, AddressSpaceId};
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct PteAttribute {
   // Note: Execute indicates Read, Write indicates Read
   pub k_w: bool,
@@ -112,14 +115,21 @@ impl PteAttribute {
   }
 }
 
+#[derive(Copy, Clone, Debug)]
+pub enum PageTableError {
+  VaAlreadyMapped,
+  VaNotMapped,
+  VaRemoveFailed,
+}
+
 pub trait PageTableImpl {
   fn new(directory: PageFrame) -> Self;
   fn directory(&self) -> PageFrame;
   fn map(&self, va: usize, pa: usize, attr: PteAttribute);
-  fn insert_page(&self, va: usize, frame: PageFrame, attr: PteAttribute);
+  fn unmap(&self, va: usize);
+  fn insert_page(&self, va: usize, frame: PageFrame, attr: PteAttribute) -> Result<(), PageTableError>;
   fn lookup_page(&self, va: usize) -> Option<PageTableEntry>;
-  fn remove_page(&self, va: usize);
-  fn is_mapped(&self, va: usize) -> bool;
+  fn remove_page(&self, va: usize) -> Result<(), PageTableError>;
 }
 
 pub trait Arch {
@@ -135,4 +145,6 @@ pub trait Arch {
   fn get_kernel_page_table(&self) -> PageTable;
   fn get_user_page_table(&self) -> PageTable;
   fn set_user_page_table(&self, pt: PageTable, asid: AddressSpaceId);
+
+  fn invalidate_tlb(&self);
 }

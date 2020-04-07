@@ -1,4 +1,5 @@
 use cortex_a::regs::RegisterReadWrite;
+use lib::scheduler::Scheduler;
 
 pub trait InterruptServiceRoutine {
   fn system_call(&self);
@@ -12,16 +13,18 @@ pub struct Isr;
 impl InterruptServiceRoutine for Isr {
   fn system_call(&self) {
     use arch::*;
-    print!("{}", unsafe { CONTEXT_FRAME }.system_call_argument(0) as u8 as char);
+    print!("{}", unsafe { CONTEXT_FRAME }.get_syscall_argument(0) as u8 as char);
   }
   fn interrupt_request(&self) {
     println!("InterruptServiceRoutine: interrupt_request");
     crate::driver::timer::timer_next(0);
-    super::process::process_schedule();
+    unsafe {
+      super::scheduler::SCHEDULER.schedule(super::process_pool::PROCESS_POOL.pid_list());
+    }
   }
   fn page_fault(&self) {
     use arch::*;
-    println!("elr: {:016x}", unsafe { CONTEXT_FRAME }.elr);
+    println!("elr: {:016x}", unsafe { CONTEXT_FRAME.get_exception_pc() });
     println!("far: {:016x}", cortex_a::regs::FAR_EL1.get());
     panic!("InterruptServiceRoutine: page_fault");
   }

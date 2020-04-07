@@ -22,3 +22,7 @@ pub fn heap_range() -> Range<usize> {
   let normal_range = BOARD.normal_memory_range();
   (normal_range.end - CONFIG_NON_PAGED_MEMORY_SIZE)..normal_range.end
 }
+
+// Process
+pub const CONFIG_PROCESS_NUMBER: usize = 1 << 10;
+pub const CONFIG_PROCESS_STACK_TOP: usize = 0x8000_0000;

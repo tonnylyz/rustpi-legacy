@@ -6,6 +6,7 @@
 #![feature(core_intrinsics)]
 #![feature(format_args_nl)]
 #![feature(vec_remove_item)]
+#![feature(asm)]
 
 extern crate cortex_a;
 extern crate register;
@@ -38,7 +39,8 @@ use arch::*;
 use config::*;
 
 use lib::user_image::*;
-use lib::elf::read_elf;
+use lib::scheduler::{SCHEDULER, Scheduler};
+use lib::process_pool::PROCESS_POOL;
 
 #[no_mangle]
 pub unsafe fn main() -> ! {
@@ -51,19 +53,11 @@ pub unsafe fn main() -> ! {
   mm::page_pool::init(paged_range());
 
   driver::timer::timer_init();
+  lib::process_pool::PROCESS_POOL.init();
 
-
-  let p1 = lib::process::process_alloc();
-  let page_table = arch::PageTable::new(mm::page_pool::alloc());
-  let entry_point = read_elf(&_binary_user_elf_start, &page_table).unwrap_or(0);
-  println!("entry point: {:08x}", entry_point);
-  page_table.insert_page(0x8000_0000 - PAGE_SIZE, mm::page_pool::alloc(), PteAttribute::user_default());
-  p1.init(1234, entry_point);
-  p1.set_page_table(page_table);
-  p1.set_status(lib::process::ProcessStatus::Ready);
-
-  p1.sched();
-
+  lib::process::Pid::create(&_binary_user_elf_start, 12345);
+  lib::process::Pid::create(&_binary_user_elf_start, 54321);
+  SCHEDULER.schedule(PROCESS_POOL.pid_list());
   // kernel mode -> user mode
   ARCH.start_first_process()
 }

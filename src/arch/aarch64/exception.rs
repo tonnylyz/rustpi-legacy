@@ -9,25 +9,38 @@ use cortex_a::{barrier, regs::*};
 global_asm!(include_str!("exception.S"));
 
 #[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct Aarch64ContextFrame {
-  pub gpr: [u64; 31],
-  pub spsr: u64,
-  pub elr: u64,
-  pub sp: u64,
+  gpr: [u64; 31],
+  spsr: u64,
+  elr: u64,
+  sp: u64,
 }
 
-impl crate::arch::traits::ContextFrameImpl for Aarch64ContextFrame {
+impl Aarch64ContextFrame {
+  pub const fn zero() -> Self {
+    Aarch64ContextFrame {
+      gpr: [0; 31],
+      spsr: 0,
+      elr: 0,
+      sp: 0,
+    }
+  }
+}
+
+impl Default for Aarch64ContextFrame {
   fn default() -> Self {
     Aarch64ContextFrame {
       gpr: [0; 31],
       spsr: (SPSR_EL1::M::EL0t + SPSR_EL1::I::Unmasked).value as u64,
-      elr: 0x80000,
-      sp: 0x8000_0000,
+      elr: 0xdeadbeef,
+      sp: 0xdeadbeef,
     }
   }
+}
 
-  fn system_call_argument(&self, i: usize) -> usize {
+impl crate::arch::traits::ContextFrameImpl for Aarch64ContextFrame {
+  fn get_syscall_argument(&self, i: usize) -> usize {
     const AARCH64_SYSCALL_ARG_LIMIT: usize = 8;
     if i > AARCH64_SYSCALL_ARG_LIMIT {
       panic!("Fetch argument index exceeds limit {}/{}", i, AARCH64_SYSCALL_ARG_LIMIT);
@@ -36,14 +49,30 @@ impl crate::arch::traits::ContextFrameImpl for Aarch64ContextFrame {
     self.gpr[i] as usize
   }
 
-  fn system_call_number(&self) -> usize {
+  fn get_syscall_number(&self) -> usize {
     // x8
     self.gpr[8] as usize
   }
 
-  fn system_call_set_return_value(&mut self, v: usize) {
+  fn set_syscall_return_value(&mut self, v: usize) {
     // x0
     self.gpr[0] = v as u64;
+  }
+
+  fn get_exception_pc(&self) -> usize {
+    self.elr as usize
+  }
+
+  fn set_exception_pc(&mut self, pc: usize) {
+    self.elr = pc as u64;
+  }
+
+  fn set_stack_pointer(&mut self, sp: usize) {
+    self.sp = sp as u64;
+  }
+
+  fn set_argument(&mut self, arg: usize) {
+    self.gpr[0] = arg as u64;
   }
 }
 

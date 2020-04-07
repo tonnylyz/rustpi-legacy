@@ -1,6 +1,7 @@
 use super::vm_descriptor::*;
 use crate::mm::*;
 use arch::*;
+use arch::PageTableError::{VaAlreadyMapped, VaRemoveFailed};
 
 #[derive(Copy, Clone, Debug)]
 pub struct Aarch64PageTable {
@@ -90,7 +91,7 @@ impl core::convert::From<PageTableEntry> for TableDescriptor {
       } else if !pte.attr.k_w && !pte.attr.u_r && !pte.attr.u_w {
         PAGE_DESCRIPTOR::AP::RO_EL1
       } else {
-        panic!("PageTable: permission mode not support")
+        PAGE_DESCRIPTOR::AP::RO_EL1
       }
         + PAGE_DESCRIPTOR::TYPE::Table
         + PAGE_DESCRIPTOR::VALID::True
@@ -102,6 +103,7 @@ impl core::convert::From<PageTableEntry> for TableDescriptor {
 
 fn alloc_page_table() -> TableDescriptor {
   let frame = crate::mm::page_pool::alloc();
+  crate::mm::page_pool::increase_rc(frame);
   TableDescriptor((TABLE_DESCRIPTOR::NEXT_LEVEL_TABLE_ADDR.val((frame.pa() >> 12) as u64)
     + TABLE_DESCRIPTOR::TYPE::Table
     + TABLE_DESCRIPTOR::VALID::True
@@ -120,9 +122,6 @@ impl PageTableImpl for Aarch64PageTable {
   }
 
   fn map(&self, va: usize, pa: usize, attr: PteAttribute) {
-    if self.is_mapped(va) {
-      panic!("va already mapped")
-    }
     let directory = TableDescriptor(self.directory.pa() as u64);
     let mut l1e = directory.get_entry(va.l1x());
     if !l1e.valid() {
@@ -140,43 +139,61 @@ impl PageTableImpl for Aarch64PageTable {
     }));
   }
 
-  fn insert_page(&self, va: usize, frame: PageFrame, attr: PteAttribute) {
-    let pa = frame.pa();
-    self.map(va, pa, attr);
-  }
-
-  fn lookup_page(&self, va: usize) -> Option<PageTableEntry> {
-    if !self.is_mapped(va) {
-      return None;
-    }
+  fn unmap(&self, va: usize) {
     let directory = TableDescriptor(self.directory.pa() as u64);
     let l1e = directory.get_entry(va.l1x());
+    assert!(l1e.valid());
     let l2e = l1e.get_entry(va.l2x());
-    let l3e = l2e.get_entry(va.l3x());
-    Some(PageTableEntry::from(l3e))
-  }
-
-  fn remove_page(&self, va: usize) {
-    if !self.is_mapped(va) {
-      panic!("va not mapped")
-    }
-    let directory = TableDescriptor(self.directory.pa() as u64);
-    let l1e = directory.get_entry(va.l1x());
-    let l2e = l1e.get_entry(va.l2x());
+    assert!(l2e.valid());
     l2e.set_entry(va.l3x(), TableDescriptor(0));
   }
 
-  fn is_mapped(&self, va: usize) -> bool {
+  fn insert_page(&self, va: usize, frame: PageFrame, attr: PteAttribute) -> Result<(), PageTableError> {
+    let pa = frame.pa();
+    if let Some(p) = self.lookup_page(va) {
+      if p.addr != pa {
+        // replace mapped frame
+        self.remove_page(va);
+      } else {
+        // update attribute
+        ARCH.invalidate_tlb();
+        self.map(va, pa, attr);
+        return Ok(());
+      }
+    }
+    ARCH.invalidate_tlb();
+    self.map(va, pa, attr);
+    crate::mm::page_pool::increase_rc(frame);
+    Ok(())
+  }
+
+  fn lookup_page(&self, va: usize) -> Option<PageTableEntry> {
     let directory = TableDescriptor(self.directory.pa() as u64);
     let l1e = directory.get_entry(va.l1x());
     if !l1e.valid() {
-      return false;
+      return None;
     }
     let l2e = l1e.get_entry(va.l2x());
     if !l2e.valid() {
-      return false;
+      return None;
     }
     let l3e = l2e.get_entry(va.l3x());
-    l3e.valid()
+    if !(l3e.valid()) {
+      None
+    } else {
+      Some(PageTableEntry::from(l3e))
+    }
+  }
+
+  fn remove_page(&self, va: usize) -> Result<(), PageTableError> {
+    if let Some(pte) = self.lookup_page(va) {
+      let frame = PageFrame::new(pte.addr);
+      crate::mm::page_pool::decrease_rc(frame);
+      self.unmap(va);
+      ARCH.invalidate_tlb();
+      Ok(())
+    } else {
+      Err(PageTableError::VaNotMapped)
+    }
   }
 }

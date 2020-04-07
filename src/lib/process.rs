@@ -1,139 +1,121 @@
-use alloc::vec::Vec;
 use arch::*;
+use config::CONFIG_PROCESS_STACK_TOP;
+use lib::process_pool::PROCESS_POOL;
+use lib::scheduler::{SCHEDULER, Scheduler};
+use lib::process::ProcessStatus::PsRunnable;
 
 #[derive(Eq, PartialEq, Copy, Clone)]
 pub enum ProcessStatus {
-  Running,
-  Ready,
-  NotReady,
+  PsFree,
+  PsRunnable,
+  PsNotRunnable,
 }
 
 // Process Control Block
 #[derive(Copy, Clone)]
-struct Process {
-  id: u8,
-  page_table: Option<PageTable>,
-  context: Option<ContextFrame>,
-  status: ProcessStatus,
+pub struct Process {
+  pub id: Option<Pid>,
+  pub parent: Option<Pid>,
+  pub directory: Option<PageTable>,
+  pub context: Option<ContextFrame>,
+  pub status: ProcessStatus,
+
+  pub ipc_value: usize,
+  pub ipc_from: Option<Pid>,
+  pub ipc_receiving: bool,
+  pub ipc_dst_addr: usize,
+  pub ipc_dst_attr: usize,
+
+  pub exception_handler: usize,
+  pub exception_stack_top: usize,
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub struct Pid(u8);
-
-impl core::fmt::Display for Pid {
-  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-    write!(f, "[PID: {}]", self.0)
-  }
+pub struct Pid {
+  pid: u16,
+  pcb: *mut Process,
 }
 
 impl Pid {
-  pub fn init(&self, arg: usize, entry_point: usize) {
-    let pid = (*self).0;
-    unsafe {
-      let mut ctx = ContextFrame::default();
-      ctx.gpr[0] = arg as u64;
-      ctx.elr = entry_point as u64;
-      PROCESSES[pid as usize].context = Some(ctx);
+  pub const fn new(pid: u16, pcb: *mut Process) -> Self {
+    Pid {
+      pid,
+      pcb
     }
   }
 
-  pub fn set_page_table(&self, page_table: PageTable) {
-    let pid = (*self).0;
+  pub fn setup_vm(&self) {
     unsafe {
-      PROCESSES[pid as usize].page_table = Some(page_table);
+      let frame = crate::mm::page_pool::alloc();
+      crate::mm::page_pool::increase_rc(frame);
+      (*self.pcb).directory = Some(PageTable::new(frame));
+      // TODO: map `PROCESS_LIST` to user space
+      // TODO: recursive page table
     }
   }
 
-  pub fn get_page_table(&self) -> PageTable {
-    let pid = (*self).0;
+  fn load_image(&self, elf: &'static [u8]) {
     unsafe {
-      if let Some(page_table) = PROCESSES[pid as usize].page_table {
-        page_table
+      let page_table = (*self.pcb).directory.unwrap();
+      page_table.insert_page(CONFIG_PROCESS_STACK_TOP - PAGE_SIZE, crate::mm::page_pool::alloc(), PteAttribute::user_default());
+      if let Ok(entry) = super::elf::load_elf(elf, page_table) {
+        let mut ctx = (*self.pcb).context.unwrap();
+        ctx.set_exception_pc(entry);
+        (*self.pcb).context = Some(ctx);
       } else {
-        panic!("Page table not set");
+        panic!("load_image error");
       }
     }
   }
 
-  pub fn save_context_to_pcb(&self) {
-    let pid = (*self).0;
+  pub fn create(elf: &'static [u8], arg: usize) {
     unsafe {
-      PROCESSES[pid as usize].context = Some(CONTEXT_FRAME);
+      if let Ok(pid) = PROCESS_POOL.alloc(None, arg) {
+         pid.load_image(elf);
+      } else {
+        panic!("create alloc error");
+      }
     }
   }
 
-  pub fn set_status(&self, status: ProcessStatus) {
-    let pid = (*self).0;
+  pub fn free(&self) {
+    // TODO: traverse whole user address space, recycle all page frame (page table included)
     unsafe {
-      PROCESSES[pid as usize].status = status;
+      PROCESS_POOL.free(self.clone());
     }
   }
 
-  pub fn sched(&self) {
-    let pid = (*self).0;
+  pub fn destroy(&self) {
+    self.free();
     unsafe {
-      if PROCESSES[pid as usize].page_table.is_none() {
-        panic!("Process page table not exists")
+      if let Some(pid) = CURRENT_PROCESS {
+        if pid.pid == self.pid {
+          CURRENT_PROCESS = None;
+          SCHEDULER.schedule(PROCESS_POOL.pid_list());
+        }
       }
-      if PROCESSES[pid as usize].context.is_none() {
-        panic!("Process context not exists")
+    }
+  }
+
+  pub fn run(&self) {
+    unsafe {
+      assert!((*self.pcb).directory.is_some());
+      assert!((*self.pcb).context.is_some());
+      if let Some(prev) = CURRENT_PROCESS {
+        (*prev.pcb).context = Some(CONTEXT_FRAME);
       }
-      PROCESSES[pid as usize].status = ProcessStatus::Running;
-      crate::arch::ARCH.set_user_page_table(PROCESSES[pid as usize].page_table.unwrap(), pid as AddressSpaceId);
-      CONTEXT_FRAME = PROCESSES[pid as usize].context.unwrap();
+      CURRENT_PROCESS = Some(self.clone());
+      CONTEXT_FRAME = (*self.pcb).context.unwrap();
+      crate::arch::ARCH.set_user_page_table((*self.pcb).directory.unwrap(), self.pid as AddressSpaceId);
+      crate::arch::ARCH.invalidate_tlb();
+    }
+  }
+
+  pub fn is_runnable(&self) -> bool {
+    unsafe {
+      (*self.pcb).status == PsRunnable
     }
   }
 }
 
-pub fn process_alloc() -> Pid {
-  unsafe {
-    let pid = PROCESSES.len() as u8;
-    PROCESSES.push(Process {
-      id: pid,
-      page_table: None,
-      context: None,
-      status: ProcessStatus::NotReady,
-    });
-    Pid(pid)
-  }
-}
-
-pub fn process_current() -> Option<Pid> {
-  unsafe {
-    for (_i, p) in PROCESSES.iter().enumerate() {
-      if p.status == ProcessStatus::Running {
-        return Some(Pid(p.id));
-      }
-    }
-  }
-  None
-}
-
-pub fn process_next_ready() -> Option<Pid> {
-  unsafe {
-    for (_i, p) in PROCESSES.iter().enumerate() {
-      if p.status == ProcessStatus::Ready {
-        return Some(Pid(p.id));
-      }
-    }
-  }
-  None
-}
-
-pub fn process_schedule() {
-  if let Some(next) = process_next_ready() {
-    if let Some(current) = process_current() {
-      println!("switch from {} to {}", current, next);
-      if current == next {
-        return;
-      }
-      current.set_status(ProcessStatus::Ready); // Running -> Ready
-      current.save_context_to_pcb();
-      next.sched();
-    }
-  } else {
-    return; // no ready process
-  }
-}
-
-static mut PROCESSES: Vec<Process> = Vec::new();
+pub static mut CURRENT_PROCESS: Option<Pid> = None;

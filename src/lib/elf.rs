@@ -8,7 +8,7 @@ unsafe fn memcpy(src: &'static [u8], offset: usize, dest: mm::PageFrame, length:
   }
 }
 
-pub unsafe fn read_elf(src: &'static [u8], page_table: &arch::PageTable) -> Result<usize, &'static str>{
+pub unsafe fn load_elf(src: &'static [u8], page_table: arch::PageTable) -> Result<usize, &'static str>{
   use xmas_elf::*;
   let elf = ElfFile::new(src)?;
   println!("{}", elf.header);
@@ -29,7 +29,6 @@ pub unsafe fn read_elf(src: &'static [u8], page_table: &arch::PageTable) -> Resu
       /* Note: we require `LOAD` type program data page aligned */
       assert_eq!(i % PAGE_SIZE, 0);
       let frame = mm::page_pool::alloc();
-      println!("Alloc page {:08x}", frame.pa());
       if i + PAGE_SIZE > va + mem_size {
         // last page
         if i > va + file_size {

@@ -10,6 +10,7 @@ pub enum PagePoolError {
   PageFrameNotManaged,
   PageFrameNotAlloced,
   PageFrameRefCountNotZero,
+  PageRefCountOverflow,
 }
 use self::PagePoolError::*;
 
@@ -71,11 +72,30 @@ impl PagePoolImpl for PagePool {
   }
 
   fn increase_rc(&mut self, frame: PageFrame) -> Result<u8, PagePoolError> {
-    unimplemented!()
+    if !self.in_pool(frame) {
+      return Err(PageFrameNotManaged);
+    }
+    let ppn = self.ppn(frame);
+    let val = self.rc[ppn];
+    if val == 255 {
+      return Err(PageRefCountOverflow);
+    }
+    self.rc[ppn] += 1;
+    Ok(val + 1)
   }
 
   fn decrease_rc(&mut self, frame: PageFrame) -> Result<u8, PagePoolError> {
-    unimplemented!()
+    if !self.in_pool(frame) {
+      return Err(PageFrameNotManaged);
+    }
+    let ppn = self.ppn(frame);
+    let val = self.rc[ppn];
+    if val == 0 {
+      self.free(frame);
+      return Ok(0);
+    }
+    self.rc[ppn] -= 1;
+    Ok(val - 1)
   }
 
   fn get_rc(&self, frame: PageFrame) -> Result<u8, PagePoolError> {
@@ -132,4 +152,16 @@ pub fn free(frame: PageFrame) -> bool {
   let r = pool.free(frame).is_ok();
   drop(pool);
   r
+}
+
+pub fn increase_rc(frame: PageFrame) {
+  let mut pool = PAGE_POOL.lock();
+  let r = pool.increase_rc(frame);
+  drop(pool);
+}
+
+pub fn decrease_rc(frame: PageFrame) {
+  let mut pool = PAGE_POOL.lock();
+  let r = pool.decrease_rc(frame);
+  drop(pool);
 }

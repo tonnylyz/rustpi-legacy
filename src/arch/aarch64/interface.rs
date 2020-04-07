@@ -2,6 +2,7 @@
 
 use arch::traits::{Arch,PageTableImpl};
 use mm::PageFrame;
+use arch::aarch64::exception::Aarch64ContextFrame;
 
 pub type PageTable = super::page_table::Aarch64PageTable;
 
@@ -10,12 +11,7 @@ pub type ContextFrame = super::exception::Aarch64ContextFrame;
 pub type AddressSpaceId = u16;
 
 #[no_mangle]
-pub static mut CONTEXT_FRAME: ContextFrame = ContextFrame {
-  gpr: [0; 31],
-  spsr: 0,
-  elr: 0,
-  sp: 0,
-};
+pub static mut CONTEXT_FRAME: ContextFrame = Aarch64ContextFrame::zero();
 
 pub struct Aarch64Arch;
 
@@ -48,6 +44,15 @@ impl Arch for Aarch64Arch {
       TTBR0_EL1.set_baddr(pt.directory().pa() as u64);
       barrier::isb(barrier::SY);
       barrier::dsb(barrier::SY);
+    }
+  }
+
+  fn invalidate_tlb(&self) {
+    unsafe {
+      asm!("dsb ishst");
+      asm!("tlbi vmalle1is");
+      asm!("dsb ish");
+      asm!("isb");
     }
   }
 }

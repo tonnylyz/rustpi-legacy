@@ -40,7 +40,6 @@ use config::*;
 
 use lib::user_image::*;
 use lib::scheduler::{SCHEDULER, Scheduler};
-use lib::process_pool::PROCESS_POOL;
 
 #[no_mangle]
 pub unsafe fn main() -> ! {
@@ -53,11 +52,11 @@ pub unsafe fn main() -> ! {
   mm::page_pool::init(paged_range());
 
   driver::timer::timer_init();
-  lib::process_pool::PROCESS_POOL.init();
+  lib::process_pool::init();
 
   lib::process::Pid::create(&_binary_user_elf_start, 12345);
   lib::process::Pid::create(&_binary_user_elf_start, 54321);
-  SCHEDULER.schedule(PROCESS_POOL.pid_list());
+  SCHEDULER.schedule(lib::process_pool::pid_list());
   // kernel mode -> user mode
   ARCH.start_first_process()
 }

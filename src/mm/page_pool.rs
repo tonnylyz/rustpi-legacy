@@ -156,12 +156,12 @@ pub fn free(frame: PageFrame) -> bool {
 
 pub fn increase_rc(frame: PageFrame) {
   let mut pool = PAGE_POOL.lock();
-  let r = pool.increase_rc(frame);
+  let _r = pool.increase_rc(frame);
   drop(pool);
 }
 
 pub fn decrease_rc(frame: PageFrame) {
   let mut pool = PAGE_POOL.lock();
-  let r = pool.decrease_rc(frame);
+  let _r = pool.decrease_rc(frame);
   drop(pool);
 }

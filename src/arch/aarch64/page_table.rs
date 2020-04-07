@@ -1,7 +1,6 @@
 use super::vm_descriptor::*;
 use crate::mm::*;
 use arch::*;
-use arch::PageTableError::{VaAlreadyMapped, VaRemoveFailed};
 
 #[derive(Copy, Clone, Debug)]
 pub struct Aarch64PageTable {

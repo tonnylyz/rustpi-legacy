@@ -19,7 +19,7 @@ impl InterruptServiceRoutine for Isr {
     println!("InterruptServiceRoutine: interrupt_request");
     crate::driver::timer::timer_next(0);
     unsafe {
-      super::scheduler::SCHEDULER.schedule(super::process_pool::PROCESS_POOL.pid_list());
+      super::scheduler::SCHEDULER.schedule(super::process_pool::pid_list());
     }
   }
   fn page_fault(&self) {

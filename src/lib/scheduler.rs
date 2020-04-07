@@ -11,14 +11,12 @@ pub trait Scheduler {
 
 impl Scheduler for RoundRobinScheduler {
   fn schedule(&mut self, candidates: Vec<Pid>) {
-    unsafe {
-      loop {
-        self.counter += 1;
-        let candidate = self.counter % candidates.len();
-        if candidates[candidate].is_runnable() {
-          candidates[candidate].run();
-          return;
-        }
+    loop {
+      self.counter += 1;
+      let candidate = self.counter % candidates.len();
+      if candidates[candidate].is_runnable() {
+        candidates[candidate].run();
+        return;
       }
     }
   }

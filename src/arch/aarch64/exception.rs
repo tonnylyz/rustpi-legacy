@@ -23,7 +23,10 @@ impl core::fmt::Display for Aarch64ContextFrame {
     writeln!(f, "[Aarch64ContextFrame]");
     writeln!(f, "gpr:");
     for i in 0..31 {
-      writeln!(f, "\tx{:02}: {:016x}", i, self.gpr[i]);
+      write!(f, "x{:02}: {:016x}\t", i, self.gpr[i]);
+      if (i + 1) % 2 == 0 {
+        write!(f, "\n");
+      }
     }
     writeln!(f, "spsr: {:016x}", self.spsr);
     writeln!(f, "elr:  {:016x}", self.elr);

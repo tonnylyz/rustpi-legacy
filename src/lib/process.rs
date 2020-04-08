@@ -60,16 +60,17 @@ impl Pid {
     unsafe {
       let frame = crate::mm::page_pool::alloc();
       crate::mm::page_pool::increase_rc(frame);
-      (*self.pcb()).directory = Some(PageTable::new(frame));
+      let page_table = PageTable::new(frame);
+      page_table.recursive_map(0x8000_0000);
+      (*self.pcb()).directory = Some(page_table);
       // TODO: map `PROCESS_LIST` to user space
-      // TODO: recursive page table
     }
   }
 
   fn load_image(&self, elf: &'static [u8]) {
     unsafe {
       let page_table = (*self.pcb()).directory.unwrap();
-      page_table.insert_page(CONFIG_PROCESS_STACK_TOP - PAGE_SIZE, crate::mm::page_pool::alloc(), PteAttribute::user_default());
+      page_table.insert_page(CONFIG_PROCESS_STACK_TOP - PAGE_SIZE, crate::mm::page_pool::alloc(), PageTableEntryAttr::user_default());
       let entry = super::elf::load_elf(elf, page_table);
       let mut ctx = (*self.pcb()).context.unwrap();
       ctx.set_exception_pc(entry);

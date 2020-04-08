@@ -25,36 +25,18 @@ impl VirtualAddress for usize {
   }
 }
 
-#[repr(transparent)]
-#[derive(Copy, Clone, Debug)]
-struct TableDescriptor(u64);
-
-trait Descriptor {
+trait TableDescriptor {
   fn valid(&self) -> bool;
   fn get_entry(&self, index: usize) -> Self;
   fn set_entry(&self, index: usize, value: Self);
 }
 
-impl Descriptor for TableDescriptor {
-  fn valid(&self) -> bool {
-    self.0 & 0b11 != 0
-  }
-  fn get_entry(&self, index: usize) -> TableDescriptor {
-    let addr = pa2kva(pte2pa(self.0 as usize) + index * 8);
-    unsafe { TableDescriptor(core::intrinsics::volatile_load(addr as *const u64)) }
-  }
-  fn set_entry(&self, index: usize, value: TableDescriptor) {
-    let addr = pa2kva(pte2pa(self.0 as usize) + index * 8);
-    unsafe { core::intrinsics::volatile_store(addr as *mut u64, value.0) }
-  }
-}
-
-impl core::convert::From<TableDescriptor> for PageTableEntry {
-  fn from(u: TableDescriptor) -> Self {
+impl core::convert::From<ArchPageTableEntry> for PageTableEntry {
+  fn from(u: ArchPageTableEntry) -> Self {
     use register::*;
-    let reg = LocalRegisterCopy::<u64, PAGE_DESCRIPTOR::Register>::new(u.0);
+    let reg = LocalRegisterCopy::<u64, PAGE_DESCRIPTOR::Register>::new(u.to_u64());
     PageTableEntry{
-      attr: PteAttribute {
+      attr: PageTableEntryAttr {
         k_w: reg.matches_all(PAGE_DESCRIPTOR::AP::RW_EL1) || reg.matches_all(PAGE_DESCRIPTOR::AP::RW_EL1_EL0),
         k_x: !reg.is_set(PAGE_DESCRIPTOR::PXN),
         u_r: reg.matches_all(PAGE_DESCRIPTOR::AP::RW_EL1_EL0) || reg.matches_all(PAGE_DESCRIPTOR::AP::RO_EL1_EL0),
@@ -64,14 +46,14 @@ impl core::convert::From<TableDescriptor> for PageTableEntry {
         shared: reg.is_set(PAGE_DESCRIPTOR::LIB),
         device: reg.matches_all(PAGE_DESCRIPTOR::AttrIndx::DEVICE)
       },
-      addr: pte2pa(u.0 as usize)
+      addr: pte2pa(u.to_usize())
     }
   }
 }
 
-impl core::convert::From<PageTableEntry> for TableDescriptor {
+impl core::convert::From<PageTableEntry> for ArchPageTableEntry {
   fn from(pte: PageTableEntry) -> Self {
-    TableDescriptor((
+    ArchPageTableEntry::new((
       if pte.attr.shared { PAGE_DESCRIPTOR::LIB::True } else { PAGE_DESCRIPTOR::LIB::False }
         + if pte.attr.copy_on_write { PAGE_DESCRIPTOR::COW::True } else { PAGE_DESCRIPTOR::COW::False }
         + if pte.attr.u_x { PAGE_DESCRIPTOR::UXN::False } else { PAGE_DESCRIPTOR::UXN::True }
@@ -90,6 +72,7 @@ impl core::convert::From<PageTableEntry> for TableDescriptor {
       } else if !pte.attr.k_w && !pte.attr.u_r && !pte.attr.u_w {
         PAGE_DESCRIPTOR::AP::RO_EL1
       } else {
+        panic!("PAGE_DESCRIPTOR::AP::RO_EL1");
         PAGE_DESCRIPTOR::AP::RO_EL1
       }
         + PAGE_DESCRIPTOR::TYPE::Table
@@ -100,13 +83,27 @@ impl core::convert::From<PageTableEntry> for TableDescriptor {
   }
 }
 
-fn alloc_page_table() -> TableDescriptor {
+impl TableDescriptor for ArchPageTableEntry {
+  fn valid(&self) -> bool {
+    self.to_usize() & 0b11 != 0
+  }
+  fn get_entry(&self, index: usize) -> ArchPageTableEntry {
+    let addr = pa2kva(pte2pa(self.to_usize()) + index * 8);
+    unsafe { ArchPageTableEntry::new(core::intrinsics::volatile_load(addr as *const u64)) }
+  }
+  fn set_entry(&self, index: usize, value: ArchPageTableEntry) {
+    let addr = pa2kva(pte2pa(self.to_usize()) + index * 8);
+    unsafe { core::intrinsics::volatile_store(addr as *mut u64, value.to_u64()) }
+  }
+}
+
+fn alloc_page_table() -> ArchPageTableEntry {
   let frame = crate::mm::page_pool::alloc();
   crate::mm::page_pool::increase_rc(frame);
-  TableDescriptor((TABLE_DESCRIPTOR::NEXT_LEVEL_TABLE_ADDR.val((frame.pa() >> 12) as u64)
-    + TABLE_DESCRIPTOR::TYPE::Table
-    + TABLE_DESCRIPTOR::VALID::True
-  ).value)
+  ArchPageTableEntry::from(PageTableEntry {
+    attr: PageTableEntryAttr::user_page_table_frame(),
+    addr: frame.pa()
+  })
 }
 
 impl PageTableImpl for Aarch64PageTable {
@@ -120,8 +117,8 @@ impl PageTableImpl for Aarch64PageTable {
     self.directory
   }
 
-  fn map(&self, va: usize, pa: usize, attr: PteAttribute) {
-    let directory = TableDescriptor(self.directory.pa() as u64);
+  fn map(&self, va: usize, pa: usize, attr: PageTableEntryAttr) {
+    let directory = ArchPageTableEntry::new(self.directory.pa() as u64);
     let mut l1e = directory.get_entry(va.l1x());
     if !l1e.valid() {
       l1e = alloc_page_table();
@@ -132,22 +129,22 @@ impl PageTableImpl for Aarch64PageTable {
       l2e = alloc_page_table();
       l1e.set_entry(va.l2x(), l2e);
     }
-    l2e.set_entry(va.l3x(), TableDescriptor::from(PageTableEntry {
+    l2e.set_entry(va.l3x(), ArchPageTableEntry::from(PageTableEntry {
       attr,
       addr: pa,
     }));
   }
 
   fn unmap(&self, va: usize) {
-    let directory = TableDescriptor(self.directory.pa() as u64);
+    let directory = ArchPageTableEntry::new(self.directory.pa() as u64);
     let l1e = directory.get_entry(va.l1x());
     assert!(l1e.valid());
     let l2e = l1e.get_entry(va.l2x());
     assert!(l2e.valid());
-    l2e.set_entry(va.l3x(), TableDescriptor(0));
+    l2e.set_entry(va.l3x(), ArchPageTableEntry::new(0));
   }
 
-  fn insert_page(&self, va: usize, frame: PageFrame, attr: PteAttribute) -> Result<(), PageTableError> {
+  fn insert_page(&self, va: usize, frame: PageFrame, attr: PageTableEntryAttr) -> Result<(), PageTableError> {
     let pa = frame.pa();
     if let Some(p) = self.lookup_page(va) {
       if p.addr != pa {
@@ -167,7 +164,7 @@ impl PageTableImpl for Aarch64PageTable {
   }
 
   fn lookup_page(&self, va: usize) -> Option<PageTableEntry> {
-    let directory = TableDescriptor(self.directory.pa() as u64);
+    let directory = ArchPageTableEntry::new(self.directory.pa() as u64);
     let l1e = directory.get_entry(va.l1x());
     if !l1e.valid() {
       return None;
@@ -194,5 +191,15 @@ impl PageTableImpl for Aarch64PageTable {
     } else {
       Err(PageTableError::VaNotMapped)
     }
+  }
+
+  fn recursive_map(&self, va: usize) {
+    assert_eq!(va % (1 << PAGE_TABLE_L1_SHIFT), 0);
+    let directory = ArchPageTableEntry::new(self.directory.pa() as u64);
+    let l1x = va / (1 << PAGE_TABLE_L1_SHIFT);
+    directory.set_entry(l1x, ArchPageTableEntry::from(PageTableEntry {
+      attr: PageTableEntryAttr::user_page_table_frame(),
+      addr: self.directory.pa()
+    }));
   }
 }

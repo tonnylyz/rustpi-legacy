@@ -2,6 +2,7 @@ use lib::process::*;
 use lib::syscall::SystemCallError::*;
 use arch::*;
 use lib::process_pool::ProcessPoolError;
+use config::*;
 
 pub enum SystemCallError {
   ScePidNotFound = 1,
@@ -110,8 +111,7 @@ impl SystemCallImpl for SystemCall {
     Ok(())
   }
 
-  fn mem_alloc(pid: u16, va: usize, perm: usize) -> Result<(), SystemCallError> {
-    use config::*;
+  fn mem_alloc(pid: u16, va: usize, attr: usize) -> Result<(), SystemCallError> {
     if va >= CONFIG_MEM_USER_LIMIT {
       return Err(SceMemVaExceedLimit);
     }
@@ -120,23 +120,26 @@ impl SystemCallImpl for SystemCall {
     frame.zero();
     unsafe {
       let page_table = (*p.pcb()).directory.ok_or_else(|| SceProcessDirectoryNone)?;
-      // TODO: Convert user's perm into PteAttribute
-      page_table.insert_page(va, frame, PteAttribute::user_default());
+      let attr = PageTableEntry::from(ArchPageTableEntry::new(attr as u64)).attr;
+      page_table.insert_page(va, frame, attr);
     }
     Ok(())
   }
 
-  fn mem_map(src_pid: u16, src_va: usize, dst_pid: u16, dst_va: usize, perm: usize) -> Result<(), SystemCallError> {
+  fn mem_map(src_pid: u16, src_va: usize, dst_pid: u16, dst_va: usize, attr: usize) -> Result<(), SystemCallError> {
     let src_va = round_down(src_va, PAGE_SIZE);
     let dst_va = round_down(dst_va, PAGE_SIZE);
+    if dst_va >= CONFIG_MEM_USER_LIMIT {
+      return Err(SceMemVaExceedLimit);
+    }
     let src_pid = lookup_pid(src_pid, true)?;
     let dst_pid = lookup_pid(dst_pid, true)?;
     unsafe {
       let src_pt = (*src_pid.pcb()).directory.ok_or_else(|| SceProcessDirectoryNone)?;
       if let Some(pte) = src_pt.lookup_page(src_va) {
         let pa = pte.addr;
-        let attr = pte.attr;
-        // TODO: Convert user's perm into PteAttribute
+        let attr = PageTableEntry::from(ArchPageTableEntry::new(attr as u64)).attr;
+        //println!("map from [{}]@{:08x} to [{}]@{:08x} attr: {:?}", src_pid.pid(), src_va, dst_pid.pid(), dst_va, attr);
         let dst_pt = (*dst_pid.pcb()).directory.ok_or_else(|| SceProcessDirectoryNone)?;
         dst_pt.insert_page(dst_va, crate::mm::PageFrame::new(pa), attr)?;
         Ok(())
@@ -162,7 +165,6 @@ impl SystemCallImpl for SystemCall {
       let child = process_pool::alloc(Some(p), 0)?;
       let mut ctx = CONTEXT_FRAME.clone();
       ctx.set_argument(0);
-      println!("{}", ctx);
       (*child.pcb()).context = Some(ctx);
       // TODO: maybe need a workaround for copy on write of stack frame
       (*child.pcb()).status = ProcessStatus::PsNotRunnable;
@@ -188,7 +190,7 @@ impl SystemCallImpl for SystemCall {
     }
   }
 
-  fn ipc_can_send(pid: u16, value: usize, src_va: usize, perm: usize) -> Result<(), SystemCallError> {
+  fn ipc_can_send(pid: u16, value: usize, src_va: usize, attr: usize) -> Result<(), SystemCallError> {
     let p = lookup_pid(pid, false)?;
     unsafe {
       if !(*p.pcb()).ipc_receiving {

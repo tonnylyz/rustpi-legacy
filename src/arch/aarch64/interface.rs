@@ -3,6 +3,18 @@
 use arch::traits::{Arch,PageTableImpl};
 use mm::PageFrame;
 use arch::aarch64::exception::Aarch64ContextFrame;
+use arch::{PageTableEntry, PageTableEntryAttr, pte2pa};
+
+#[repr(transparent)]
+#[derive(Copy, Clone, Debug)]
+pub struct ArchPageTableEntry(u64);
+
+
+impl ArchPageTableEntry {
+  pub fn new(value: u64) -> Self { ArchPageTableEntry(value) }
+  pub fn to_usize(&self) -> usize { self.0 as usize }
+  pub fn to_u64(&self) -> u64 { self.0 }
+}
 
 pub type PageTable = super::page_table::Aarch64PageTable;
 

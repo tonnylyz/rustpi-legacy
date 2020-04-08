@@ -2,6 +2,8 @@ use cortex_a::regs::RegisterReadWrite;
 use lib::scheduler::Scheduler;
 use arch::{CONTEXT_FRAME, ContextFrameImpl};
 use lib::process::{ProcessStatus, CURRENT_PROCESS};
+use config::CONFIG_MEM_USER_LIMIT;
+use mm::PageFrame;
 
 pub trait InterruptServiceRoutine {
   fn system_call(&self);
@@ -95,6 +97,24 @@ impl InterruptServiceRoutine for Isr {
   }
   fn page_fault(&self) {
     use arch::*;
+    let addr = cortex_a::regs::FAR_EL1.get() as usize;
+    let va = round_down(addr, PAGE_SIZE);
+    if addr < CONFIG_MEM_USER_LIMIT {
+      unsafe {
+        let page_table = (*CURRENT_PROCESS.unwrap().pcb()).directory.unwrap();
+        if let Some(pte) = page_table.lookup_page(va) {
+          if pte.attr.copy_on_write {
+            let frame = PageFrame::new(pte.addr);
+            let new_frame = crate::mm::page_pool::alloc();
+            new_frame.copy_from(&frame);
+            page_table.remove_page(va);
+            page_table.insert_page(va, new_frame, pte.attr - PageTableEntryAttr::copy_on_write() + PageTableEntryAttr::writable());
+            println!("copy on write: {:08x} ok!", va);
+            return;
+          }
+        }
+      }
+    }
     println!("elr: {:016x}", unsafe { CONTEXT_FRAME.get_exception_pc() });
     println!("far: {:016x}", cortex_a::regs::FAR_EL1.get());
     println!("{}", unsafe { CONTEXT_FRAME });

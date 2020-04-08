@@ -13,7 +13,7 @@ use crate::mm::PageFrame;
 use arch::{PageTable, AddressSpaceId};
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub struct PteAttribute {
+pub struct PageTableEntryAttr {
   // Note: Execute indicates Read, Write indicates Read
   pub k_w: bool,
   pub k_x: bool,
@@ -25,11 +25,11 @@ pub struct PteAttribute {
   pub device: bool,
 }
 
-impl core::ops::Add for PteAttribute {
-  type Output = PteAttribute;
+impl core::ops::Add for PageTableEntryAttr {
+  type Output = PageTableEntryAttr;
 
   fn add(self, rhs: Self) -> Self::Output {
-    PteAttribute{
+    PageTableEntryAttr {
       k_w: self.k_w || rhs.k_w,
       k_x: self.k_x || rhs.k_x,
       u_r: self.u_r || rhs.u_r,
@@ -42,11 +42,11 @@ impl core::ops::Add for PteAttribute {
   }
 }
 
-impl core::ops::Sub for PteAttribute {
-  type Output = PteAttribute;
+impl core::ops::Sub for PageTableEntryAttr {
+  type Output = PageTableEntryAttr;
 
   fn sub(self, rhs: Self) -> Self::Output {
-    PteAttribute{
+    PageTableEntryAttr {
       k_w: self.k_w && !rhs.k_w,
       k_x: self.k_x && !rhs.k_x,
       u_r: self.u_r && !rhs.u_r,
@@ -61,13 +61,13 @@ impl core::ops::Sub for PteAttribute {
 
 #[derive(Copy, Clone, Debug)]
 pub struct PageTableEntry {
-  pub attr: PteAttribute,
+  pub attr: PageTableEntryAttr,
   pub addr: usize,
 }
 
-impl PteAttribute {
+impl PageTableEntryAttr {
   pub const fn user_default() -> Self {
-    PteAttribute {
+    PageTableEntryAttr {
       k_w: true,
       k_x: false,
       u_r: true,
@@ -78,8 +78,20 @@ impl PteAttribute {
       device: false,
     }
   }
+  pub const fn user_page_table_frame() -> Self {
+    PageTableEntryAttr {
+      k_w: false,
+      k_x: false,
+      u_r: true,
+      u_w: false,
+      u_x: false,
+      copy_on_write: false,
+      shared: false,
+      device: false,
+    }
+  }
   pub const fn kernel_device_default() -> Self {
-    PteAttribute {
+    PageTableEntryAttr {
       k_w: true,
       k_x: false,
       u_r: false,
@@ -91,7 +103,7 @@ impl PteAttribute {
     }
   }
   pub const fn copy_on_write() -> Self {
-    PteAttribute {
+    PageTableEntryAttr {
       k_w: false,
       k_x: false,
       u_r: false,
@@ -102,8 +114,20 @@ impl PteAttribute {
       device: false,
     }
   }
+  pub const fn writable() -> Self {
+    PageTableEntryAttr {
+      k_w: true,
+      k_x: false,
+      u_r: true,
+      u_w: true,
+      u_x: false,
+      copy_on_write: false,
+      shared: false,
+      device: false,
+    }
+  }
   pub const fn shared() -> Self {
-    PteAttribute {
+    PageTableEntryAttr {
       k_w: false,
       k_x: false,
       u_r: false,
@@ -126,11 +150,12 @@ pub enum PageTableError {
 pub trait PageTableImpl {
   fn new(directory: PageFrame) -> Self;
   fn directory(&self) -> PageFrame;
-  fn map(&self, va: usize, pa: usize, attr: PteAttribute);
+  fn map(&self, va: usize, pa: usize, attr: PageTableEntryAttr);
   fn unmap(&self, va: usize);
-  fn insert_page(&self, va: usize, frame: PageFrame, attr: PteAttribute) -> Result<(), PageTableError>;
+  fn insert_page(&self, va: usize, frame: PageFrame, attr: PageTableEntryAttr) -> Result<(), PageTableError>;
   fn lookup_page(&self, va: usize) -> Option<PageTableEntry>;
   fn remove_page(&self, va: usize) -> Result<(), PageTableError>;
+  fn recursive_map(&self, va: usize);
 }
 
 pub trait Arch {

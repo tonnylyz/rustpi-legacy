@@ -26,4 +26,4 @@ pub fn heap_range() -> Range<usize> {
 // Process
 pub const CONFIG_PROCESS_NUMBER: usize = 1 << 10;
 pub const CONFIG_PROCESS_STACK_TOP: usize = 0x8000_0000;
-pub const CONFIG_MEM_USER_LIMIT: usize = 0xc000_0000;
+pub const CONFIG_MEM_USER_LIMIT: usize = 0x8000_0000;

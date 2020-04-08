@@ -1,5 +1,5 @@
 use crate::{arch, mm};
-use arch::{PAGE_SIZE, PageTableImpl, PteAttribute};
+use arch::{PAGE_SIZE, PageTableImpl, PageTableEntryAttr};
 
 unsafe fn memcpy(src: &'static [u8], offset: usize, dest: mm::PageFrame, length: usize) {
   println!("memcpy from {:x} to {:x} len {:x}", offset, dest.pa(), length);
@@ -49,7 +49,7 @@ pub unsafe fn load_elf(src: &'static [u8], page_table: arch::PageTable) -> usize
         //    println!();
         //  }
         //}
-        page_table.insert_page(i, frame, PteAttribute::user_default());
+        page_table.insert_page(i, frame, PageTableEntryAttr::user_default());
       }
     }
     entry_point

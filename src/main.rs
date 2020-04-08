@@ -54,8 +54,8 @@ pub unsafe fn main() -> ! {
   driver::timer::timer_init();
   lib::process_pool::init();
 
-  lib::process::Pid::create(&_binary_user_elf_start, 12345);
-  lib::process::Pid::create(&_binary_user_elf_start, 54321);
+  lib::process::Pid::create(&_binary_user_elf_start, 1);
+  lib::process::Pid::create(&_binary_user_elf_start, 2);
   SCHEDULER.schedule(lib::process_pool::pid_list());
   // kernel mode -> user mode
   ARCH.start_first_process()

@@ -56,13 +56,10 @@ impl Pid {
     unsafe {
       let page_table = (*(self.pcb as *mut Process)).directory.unwrap();
       page_table.insert_page(CONFIG_PROCESS_STACK_TOP - PAGE_SIZE, crate::mm::page_pool::alloc(), PteAttribute::user_default());
-      if let Ok(entry) = super::elf::load_elf(elf, page_table) {
-        let mut ctx = (*(self.pcb as *mut Process)).context.unwrap();
-        ctx.set_exception_pc(entry);
-        (*(self.pcb as *mut Process)).context = Some(ctx);
-      } else {
-        panic!("load_image error");
-      }
+      let entry = super::elf::load_elf(elf, page_table);
+      let mut ctx = (*(self.pcb as *mut Process)).context.unwrap();
+      ctx.set_exception_pc(entry);
+      (*(self.pcb as *mut Process)).context = Some(ctx);
     }
   }
 

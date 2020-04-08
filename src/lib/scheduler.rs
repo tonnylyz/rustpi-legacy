@@ -15,6 +15,7 @@ impl Scheduler for RoundRobinScheduler {
       self.counter += 1;
       let candidate = self.counter % candidates.len();
       if candidates[candidate].is_runnable() {
+        println!("scheduler: switch to [{}]", candidates[candidate].pid());
         candidates[candidate].run();
         return;
       }

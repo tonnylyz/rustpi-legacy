@@ -4,6 +4,7 @@ pub trait ContextFrameImpl: Default {
   fn set_syscall_return_value(&mut self, v: usize);
   fn get_exception_pc(&self) -> usize;
   fn set_exception_pc(&mut self, pc: usize);
+  fn get_stack_pointer(&self) -> usize;
   fn set_stack_pointer(&mut self, sp: usize);
   fn set_argument(&mut self, arg: usize);
 }

@@ -4,12 +4,17 @@ Build the kernel:
 ```
 make kernel
 ```
-It will yield an `kernel8.img`, put it on sd card and run it at your Raspberry Pi 3, or run an emulation using QEMU:
+It will yield a `kernel8.img`, put it on sd card and run it at your Raspberry Pi 3, or run an emulation using QEMU:
 ```
 qemu-system-aarch64 -M raspi3 -kernel kernel8.img -serial null -serial stdio -display none
 ```
 
 More OS design documents are coming!
+
+**User Programs (in Rust)**
+
+* Repo: https://github.com/tonnylyz/rustpi-user
+ 
 
 **What is working:**
 * Bootstrap (written in Rust)
@@ -20,11 +25,13 @@ More OS design documents are coming!
 * User space memory management (paged)
 * User programs running at user mode (see https://github.com/tonnylyz/rustpi-user)
 * System calls (only putc)
+* Memory management system calls (JOS styled)
+* Process management system calls (JOS styled)
+* A user `fork` demo
 
 **Todo:**
 * Code refactoring
-* Memory management system calls
-* Process management system calls
+* Copy on Write page fault management
 * Inter-process communication(IPC) system calls
 * and so on...
 

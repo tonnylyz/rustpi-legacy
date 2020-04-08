@@ -32,7 +32,7 @@ pub enum ProcessPoolError {
 
 impl ProcessPool {
   fn init(&mut self) {
-    self.next_pid = 0;
+    self.next_pid = 1;
     unsafe {
       for p in PROCESS_LIST.iter_mut() {
         let ptr = p as *mut Process;
@@ -72,6 +72,15 @@ impl ProcessPool {
   fn pid_list(&self) -> Vec<Pid> {
     self.alloced.clone()
   }
+
+  fn lookup(&self, pid: u16) -> Option<Pid> {
+    for i in self.alloced.iter() {
+      if i.pid() == pid {
+        return Some(i.clone());
+      }
+    }
+    None
+  }
 }
 
 static PROCESS_POOL: Mutex<ProcessPool> = Mutex::new(ProcessPool {
@@ -102,6 +111,13 @@ pub fn free(pid: Pid) {
 pub fn pid_list() -> Vec<Pid> {
   let pool = PROCESS_POOL.lock();
   let r = pool.pid_list();
+  drop(pool);
+  r
+}
+
+pub fn lookup(pid: u16) -> Option<Pid> {
+  let pool = PROCESS_POOL.lock();
+  let r = pool.lookup(pid);
   drop(pool);
   r
 }

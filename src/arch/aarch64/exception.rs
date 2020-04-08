@@ -5,6 +5,7 @@
 //! Exception handling.
 
 use cortex_a::{barrier, regs::*};
+use core::fmt::{Formatter, Error};
 
 global_asm!(include_str!("exception.S"));
 
@@ -15,6 +16,20 @@ pub struct Aarch64ContextFrame {
   spsr: u64,
   elr: u64,
   sp: u64,
+}
+
+impl core::fmt::Display for Aarch64ContextFrame {
+  fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), core::fmt::Error> {
+    writeln!(f, "[Aarch64ContextFrame]");
+    writeln!(f, "gpr:");
+    for i in 0..31 {
+      writeln!(f, "\tx{:02}: {:016x}", i, self.gpr[i]);
+    }
+    writeln!(f, "spsr: {:016x}", self.spsr);
+    writeln!(f, "elr:  {:016x}", self.elr);
+    writeln!(f, "sp:   {:016x}", self.sp);
+    Ok(())
+  }
 }
 
 impl Aarch64ContextFrame {
@@ -42,9 +57,7 @@ impl Default for Aarch64ContextFrame {
 impl crate::arch::traits::ContextFrameImpl for Aarch64ContextFrame {
   fn get_syscall_argument(&self, i: usize) -> usize {
     const AARCH64_SYSCALL_ARG_LIMIT: usize = 8;
-    if i > AARCH64_SYSCALL_ARG_LIMIT {
-      panic!("Fetch argument index exceeds limit {}/{}", i, AARCH64_SYSCALL_ARG_LIMIT);
-    }
+    assert!(i < AARCH64_SYSCALL_ARG_LIMIT);
     // x0 ~ x7
     self.gpr[i] as usize
   }
@@ -65,6 +78,10 @@ impl crate::arch::traits::ContextFrameImpl for Aarch64ContextFrame {
 
   fn set_exception_pc(&mut self, pc: usize) {
     self.elr = pc as u64;
+  }
+
+  fn get_stack_pointer(&self) -> usize {
+    self.sp as usize
   }
 
   fn set_stack_pointer(&mut self, sp: usize) {

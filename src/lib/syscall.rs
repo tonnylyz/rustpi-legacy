@@ -172,7 +172,6 @@ impl SystemCallImpl for SystemCall {
       let mut ctx = CONTEXT_FRAME.clone();
       ctx.set_argument(0);
       (*child.pcb()).context = Some(ctx);
-      // TODO: maybe need a workaround for copy on write of stack frame
       (*child.pcb()).status = ProcessStatus::PsNotRunnable;
       Ok(child.pid())
     }

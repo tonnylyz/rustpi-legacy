@@ -1,6 +1,7 @@
 use arch::*;
 use config::*;
 use lib::scheduler::{SCHEDULER, Scheduler};
+use core::fmt::{Display, Formatter, Error};
 
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
 pub enum ProcessStatus {
@@ -26,6 +27,24 @@ pub struct Process {
 
   pub exception_handler: usize,
   pub exception_stack_top: usize,
+}
+
+impl Display for Process {
+  fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), core::fmt::Error> {
+    writeln!(f, "Process {}", self.id.unwrap().pid)?;
+    writeln!(f, "parent: {:?}", self.parent)?;
+    writeln!(f, "directory: {:08x}", self.directory.unwrap().directory().pa())?;
+    writeln!(f, "context:\n{}", self.context.unwrap())?;
+    writeln!(f ,"status: {:?}", self.status)?;
+    writeln!(f ,"ipc_value: {}", self.ipc_value)?;
+    writeln!(f ,"ipc_from: {:?}", self.ipc_from)?;
+    writeln!(f ,"ipc_receiving: {}", self.ipc_receiving)?;
+    writeln!(f ,"ipc_dst_addr: {:016x}", self.ipc_dst_addr)?;
+    writeln!(f ,"ipc_dst_attr: {:016x}", self.ipc_dst_attr)?;
+    writeln!(f ,"exception_handler: {:016x}", self.exception_handler)?;
+    writeln!(f ,"exception_stack_top: {:016x}", self.exception_stack_top)?;
+    Ok(())
+  }
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -61,7 +80,7 @@ impl Pid {
       let frame = crate::mm::page_pool::alloc();
       crate::mm::page_pool::increase_rc(frame);
       let page_table = PageTable::new(frame);
-      page_table.recursive_map(0x8000_0000);
+      page_table.recursive_map(CONFIG_RECURSIVE_PAGE_TABLE_BTM);
       (*self.pcb()).directory = Some(page_table);
       // TODO: map `PROCESS_LIST` to user space
     }
@@ -70,7 +89,7 @@ impl Pid {
   fn load_image(&self, elf: &'static [u8]) {
     unsafe {
       let page_table = (*self.pcb()).directory.unwrap();
-      page_table.insert_page(CONFIG_PROCESS_STACK_TOP - PAGE_SIZE, crate::mm::page_pool::alloc(), PageTableEntryAttr::user_default());
+      page_table.insert_page(CONFIG_USER_STACK_TOP - PAGE_SIZE, crate::mm::page_pool::alloc(), PageTableEntryAttr::user_default());
       let entry = super::elf::load_elf(elf, page_table);
       let mut ctx = (*self.pcb()).context.unwrap();
       ctx.set_exception_pc(entry);

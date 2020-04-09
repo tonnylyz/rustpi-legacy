@@ -55,7 +55,7 @@ impl ProcessPool {
         use arch::{ContextFrame, ContextFrameImpl};
         let mut ctx = ContextFrame::default();
         ctx.set_argument(arg);
-        ctx.set_stack_pointer(CONFIG_PROCESS_STACK_TOP);
+        ctx.set_stack_pointer(CONFIG_USER_STACK_TOP);
         (*pcb).context = Some(ctx);
         self.alloced.push(pid);
         Ok(pid)

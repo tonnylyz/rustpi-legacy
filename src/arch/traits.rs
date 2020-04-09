@@ -11,6 +11,7 @@ pub trait ContextFrameImpl: Default {
 
 use crate::mm::PageFrame;
 use arch::{PageTable, AddressSpaceId};
+use core::fmt::{Display, Formatter, Error};
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct PageTableEntryAttr {
@@ -63,6 +64,12 @@ impl core::ops::Sub for PageTableEntryAttr {
 pub struct PageTableEntry {
   pub attr: PageTableEntryAttr,
   pub addr: usize,
+}
+
+impl Display for PageTableEntry {
+  fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), core::fmt::Error> {
+    write!(f, "PageTableEntry [{:016x}] {:?}", self.addr, self.attr)
+  }
 }
 
 impl PageTableEntryAttr {

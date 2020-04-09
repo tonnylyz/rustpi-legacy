@@ -28,10 +28,10 @@ More OS design documents are coming!
 * Memory management system calls (JOS styled)
 * Process management system calls (JOS styled)
 * A user `fork` demo
+* Copy on Write page fault management
 
 **Todo:**
 * Code refactoring
-* Copy on Write page fault management
 * Inter-process communication(IPC) system calls
 * and so on...
 

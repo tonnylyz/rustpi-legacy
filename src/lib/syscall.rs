@@ -3,6 +3,8 @@ use lib::syscall::SystemCallError::*;
 use arch::*;
 use lib::process_pool::ProcessPoolError;
 use config::*;
+use core::intrinsics::size_of;
+use mm::PageFrame;
 
 pub enum SystemCallError {
   ScePidNotFound = 1,
@@ -44,6 +46,8 @@ pub trait SystemCallImpl {
 
   fn ipc_receive(dst_va: usize);
   fn ipc_can_send(pid: u16, value: usize, src_va: usize, perm: usize) -> Result<(), SystemCallError>;
+
+  fn process_set_context_frame(addr: usize);
 }
 
 pub struct SystemCall;
@@ -104,6 +108,7 @@ impl SystemCallImpl for SystemCall {
 
   fn process_set_exception_handler(pid: u16, value: usize, sp: usize) -> Result<(), SystemCallError> {
     let p = lookup_pid(pid, true)?;
+    let sp = round_up(sp, PAGE_SIZE);
     unsafe {
       (*p.pcb()).exception_handler = value;
       (*p.pcb()).exception_stack_top = sp;
@@ -112,7 +117,7 @@ impl SystemCallImpl for SystemCall {
   }
 
   fn mem_alloc(pid: u16, va: usize, attr: usize) -> Result<(), SystemCallError> {
-    if va >= CONFIG_MEM_USER_LIMIT {
+    if va >= CONFIG_USER_LIMIT {
       return Err(SceMemVaExceedLimit);
     }
     let p = lookup_pid(pid, true)?;
@@ -121,6 +126,7 @@ impl SystemCallImpl for SystemCall {
     unsafe {
       let page_table = (*p.pcb()).directory.ok_or_else(|| SceProcessDirectoryNone)?;
       let attr = PageTableEntry::from(ArchPageTableEntry::new(attr as u64)).attr;
+      //println!("mem alloc [{:016x}] [{:?}]", va, attr);
       page_table.insert_page(va, frame, attr);
     }
     Ok(())
@@ -129,7 +135,7 @@ impl SystemCallImpl for SystemCall {
   fn mem_map(src_pid: u16, src_va: usize, dst_pid: u16, dst_va: usize, attr: usize) -> Result<(), SystemCallError> {
     let src_va = round_down(src_va, PAGE_SIZE);
     let dst_va = round_down(dst_va, PAGE_SIZE);
-    if dst_va >= CONFIG_MEM_USER_LIMIT {
+    if dst_va >= CONFIG_USER_LIMIT {
       return Err(SceMemVaExceedLimit);
     }
     let src_pid = lookup_pid(src_pid, true)?;
@@ -139,7 +145,7 @@ impl SystemCallImpl for SystemCall {
       if let Some(pte) = src_pt.lookup_page(src_va) {
         let pa = pte.addr;
         let attr = PageTableEntry::from(ArchPageTableEntry::new(attr as u64)).attr;
-        //println!("map from [{}]@{:08x} to [{}]@{:08x} attr: {:?}", src_pid.pid(), src_va, dst_pid.pid(), dst_va, attr);
+        //println!("mem_map [{}][{:016x}] -> [{}][{:016x}] {:?}", src_pid.pid(), src_va, dst_pid.pid(), dst_va, attr);
         let dst_pt = (*dst_pid.pcb()).directory.ok_or_else(|| SceProcessDirectoryNone)?;
         dst_pt.insert_page(dst_va, crate::mm::PageFrame::new(pa), attr)?;
         Ok(())
@@ -201,6 +207,17 @@ impl SystemCallImpl for SystemCall {
       (*p.pcb()).ipc_value = value;
       (*p.pcb()).status = ProcessStatus::PsRunnable;
       Ok(())
+    }
+  }
+
+  fn process_set_context_frame(addr: usize) {
+    unsafe {
+      let page_table = (*CURRENT_PROCESS.unwrap().pcb()).directory.unwrap();
+      if let Some(pte) = page_table.lookup_page(addr) {
+        core::intrinsics::volatile_copy_memory((&mut CONTEXT_FRAME) as *mut ContextFrame, (PageFrame::new(pte.addr).kva()) as *const ContextFrame, size_of::<ContextFrame>());
+      } else {
+        println!("process_set_context_frame not existed");
+      }
     }
   }
 }

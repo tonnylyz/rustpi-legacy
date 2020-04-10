@@ -5,7 +5,7 @@
 //! Exception handling.
 
 use cortex_a::{barrier, regs::*};
-use core::fmt::{Formatter, Error};
+use core::fmt::Formatter;
 
 global_asm!(include_str!("exception.S"));
 

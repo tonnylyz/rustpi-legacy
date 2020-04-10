@@ -1,81 +1,75 @@
-use alloc::vec::Vec;
-use super::process::*;
 use config::*;
+use lib::process::{Process, ProcessStatus};
+use alloc::vec::Vec;
 use spin::Mutex;
 
 struct ProcessPool {
-  next_pid: u16,
-  free: Vec<usize>, // Free
-  alloced: Vec<Pid>, // Runnable and NotRunnable
+  free: Vec<Process>, // Free
+  alloced: Vec<Process>, // Runnable and NotRunnable
 }
-
-// Note: PROCESS_LIST is inevitably `unsafe`
-// It is also mapped to user space
-static mut PROCESS_LIST: [Process; CONFIG_PROCESS_NUMBER] = [Process {
-  id: None,
-  parent: None,
-  directory: None,
-  context: None,
-  status: ProcessStatus::PsFree,
-  ipc_value: 0,
-  ipc_from: None,
-  ipc_receiving: false,
-  ipc_dst_addr: 0,
-  ipc_dst_attr: 0,
-  exception_handler: 0,
-  exception_stack_top: 0
-}; CONFIG_PROCESS_NUMBER];
 
 pub enum ProcessPoolError {
-  ProcessPoolExhausted,
+  PpeExhausted,
+  PpeFree,
 }
+use self::ProcessPoolError::*;
 
 impl ProcessPool {
   fn init(&mut self) {
-    self.next_pid = 1;
-    unsafe {
-      for p in PROCESS_LIST.iter_mut() {
-        let ptr = p as *mut Process;
-        self.free.push(ptr as usize);
+    for index in 0..CONFIG_PROCESS_NUMBER {
+      let pid = (index + 1) as u16;
+      let p = Process::new(pid);
+      unsafe {
+        (*p.pcb()).id = pid;
+        (*p.ipc()).id = pid;
       }
+      self.free.push(p);
     }
   }
 
-  fn alloc(&mut self, parent: Option<Pid>, arg: usize) -> Result<Pid, ProcessPoolError> {
+  fn alloc(&mut self, parent: Option<Process>, arg: usize) -> Result<Process, ProcessPoolError> {
+    use arch::{ContextFrame, ContextFrameImpl};
     unsafe {
-      if let Some(pcb) = self.free.pop() {
-        let id = self.next_pid;
-        self.next_pid += 1;
-        let pid = Pid::new(id, pcb as *mut Process);
-        let pcb = pcb as *mut Process;
-        pid.setup_vm();
-        (*pcb).id = Some(pid);
-        (*pcb).parent = parent;
-        (*pcb).status = ProcessStatus::PsRunnable;
-        use arch::{ContextFrame, ContextFrameImpl};
+      if let Some(p) = self.free.pop() {
+        p.setup_vm();
+        (*p.pcb()).parent = parent;
+        (*p.pcb()).status = ProcessStatus::PsRunnable;
         let mut ctx = ContextFrame::default();
         ctx.set_argument(arg);
         ctx.set_stack_pointer(CONFIG_USER_STACK_TOP);
-        (*pcb).context = Some(ctx);
-        self.alloced.push(pid);
-        Ok(pid)
+        (*p.pcb()).context = Some(ctx);
+        self.alloced.push(p);
+        Ok(p)
       } else {
-        Err(ProcessPoolError::ProcessPoolExhausted)
+        Err(PpeExhausted)
       }
     }
   }
 
-  fn free(&mut self, pid: Pid) {
-    unimplemented!()
+  fn free(&mut self, p: Process) -> Result<(), ProcessPoolError> {
+    if let Some(p) = self.alloced.remove_item(&p) {
+      unsafe {
+        (*p.pcb()).parent = None;
+        (*p.pcb()).directory = None;
+        (*p.pcb()).context = None;
+        (*p.pcb()).status = ProcessStatus::PsFree;
+        (*p.pcb()).exception_handler = 0;
+        (*p.pcb()).exception_stack_top = 0;
+        self.free.push(p);
+      }
+      return Ok(());
+    } else {
+      Err(PpeFree)
+    }
   }
 
-  fn pid_list(&self) -> Vec<Pid> {
+  fn pid_list(&self) -> Vec<Process> {
     self.alloced.clone()
   }
 
-  fn lookup(&self, pid: u16) -> Option<Pid> {
+  fn lookup(&self, p: Process) -> Option<Process> {
     for i in self.alloced.iter() {
-      if i.pid() == pid {
+      if i.pid() == p.pid() {
         return Some(i.clone());
       }
     }
@@ -84,7 +78,6 @@ impl ProcessPool {
 }
 
 static PROCESS_POOL: Mutex<ProcessPool> = Mutex::new(ProcessPool {
-  next_pid: 0,
   free: Vec::new(),
   alloced: Vec::new(),
 });
@@ -95,29 +88,29 @@ pub fn init() {
   drop(pool);
 }
 
-pub fn alloc(parent: Option<Pid>, arg: usize) -> Result<Pid, ProcessPoolError> {
+pub fn alloc(parent: Option<Process>, arg: usize) -> Result<Process, ProcessPoolError> {
   let mut pool = PROCESS_POOL.lock();
   let r = pool.alloc(parent, arg);
   drop(pool);
   r
 }
 
-pub fn free(pid: Pid) {
+pub fn free(p: Process) {
   let mut pool = PROCESS_POOL.lock();
-  pool.free(pid);
+  pool.free(p);
   drop(pool);
 }
 
-pub fn pid_list() -> Vec<Pid> {
+pub fn pid_list() -> Vec<Process> {
   let pool = PROCESS_POOL.lock();
   let r = pool.pid_list();
   drop(pool);
   r
 }
 
-pub fn lookup(pid: u16) -> Option<Pid> {
+pub fn lookup(p: Process) -> Option<Process> {
   let pool = PROCESS_POOL.lock();
-  let r = pool.lookup(pid);
+  let r = pool.lookup(p);
   drop(pool);
   r
 }

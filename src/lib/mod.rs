@@ -1,6 +1,4 @@
-mod print;
-pub use self::print::*;
-
+pub mod print;
 pub mod isr;
 pub mod process;
 pub mod process_pool;

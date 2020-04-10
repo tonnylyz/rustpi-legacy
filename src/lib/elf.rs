@@ -1,17 +1,17 @@
-use crate::{arch, mm};
-use arch::{PAGE_SIZE, PageTableImpl, PageTableEntryAttr};
+use arch::*;
+use crate::mm::PageFrame;
 
-unsafe fn memcpy(src: &'static [u8], offset: usize, dest: mm::PageFrame, length: usize) {
-  println!("memcpy from {:x} to {:x} len {:x}", offset, dest.pa(), length);
+unsafe fn memcpy(src: &'static [u8], offset: usize, dest: PageFrame, length: usize) {
+  //println!("memcpy from {:x} to {:x} len {:x}", offset, dest.pa(), length);
   for i in 0..length {
     *((dest.kva() + i) as *mut u8) = src[offset + i];
   }
 }
 
-pub unsafe fn load_elf(src: &'static [u8], page_table: arch::PageTable) -> usize {
+pub unsafe fn load_elf(src: &'static [u8], page_table: PageTable) -> usize {
   use xmas_elf::*;
   if let Ok(elf) = ElfFile::new(src) {
-    println!("{}", elf.header);
+    //println!("{}", elf.header);
     let entry_point = elf.header.pt2.entry_point() as usize;
     for program_header in elf.program_iter() {
       if let Ok(program::Type::Load) = program_header.get_type() {
@@ -26,7 +26,7 @@ pub unsafe fn load_elf(src: &'static [u8], page_table: arch::PageTable) -> usize
       for i in (va..va + mem_size).step_by(PAGE_SIZE) {
         /* Note: we require `LOAD` type program data page aligned */
         assert_eq!(i % PAGE_SIZE, 0);
-        let frame = mm::page_pool::alloc();
+        let frame = crate::mm::page_pool::alloc();
         if i + PAGE_SIZE > va + mem_size {
           // last page
           if i > va + file_size {

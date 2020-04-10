@@ -20,7 +20,7 @@ fn clock_delay(n: u32) -> () {
   }
 }
 
-pub fn uart_init() -> () {
+pub fn init() -> () {
   unsafe {
     mmio_write(AUX_ENABLES, 1);
     mmio_write(AUX_MU_IER_REG, 0);
@@ -46,7 +46,7 @@ pub fn uart_init() -> () {
   }
 }
 
-fn uart_send(c: u8) {
+fn send(c: u8) {
   unsafe {
     loop {
       if (mmio_read(AUX_MU_LSR_REG) & 0x20) != 0 {
@@ -58,9 +58,9 @@ fn uart_send(c: u8) {
   }
 }
 
-pub fn uart_putc(c: u8) {
+pub fn putc(c: u8) {
   if c == b'\n' {
-    uart_send(b'\r');
+    send(b'\r');
   }
-  uart_send(c);
+  send(c);
 }

@@ -15,13 +15,13 @@ trait VirtualAddress {
 
 impl VirtualAddress for usize {
   fn l1x(&self) -> usize {
-    self >> PAGE_TABLE_L1_SHIFT & (PAGE_SIZE / 8 - 1)
+    self >> PAGE_TABLE_L1_SHIFT & (PAGE_SIZE / WORD_SIZE - 1)
   }
   fn l2x(&self) -> usize {
-    self >> PAGE_TABLE_L2_SHIFT & (PAGE_SIZE / 8 - 1)
+    self >> PAGE_TABLE_L2_SHIFT & (PAGE_SIZE / WORD_SIZE - 1)
   }
   fn l3x(&self) -> usize {
-    self >> PAGE_TABLE_L3_SHIFT & (PAGE_SIZE / 8 - 1)
+    self >> PAGE_TABLE_L3_SHIFT & (PAGE_SIZE / WORD_SIZE - 1)
   }
 }
 
@@ -72,8 +72,7 @@ impl core::convert::From<PageTableEntry> for ArchPageTableEntry {
       } else if !pte.attr.k_w && !pte.attr.u_r && !pte.attr.u_w {
         PAGE_DESCRIPTOR::AP::RO_EL1
       } else {
-        panic!("PAGE_DESCRIPTOR::AP::RO_EL1");
-        PAGE_DESCRIPTOR::AP::RO_EL1
+        panic!("PAGE_DESCRIPTOR");
       }
         + PAGE_DESCRIPTOR::TYPE::Table
         + PAGE_DESCRIPTOR::VALID::True
@@ -88,11 +87,11 @@ impl TableDescriptor for ArchPageTableEntry {
     self.to_usize() & 0b11 != 0
   }
   fn get_entry(&self, index: usize) -> ArchPageTableEntry {
-    let addr = pa2kva(pte2pa(self.to_usize()) + index * 8);
+    let addr = pa2kva(pte2pa(self.to_usize()) + index * WORD_SIZE);
     unsafe { ArchPageTableEntry::new(core::intrinsics::volatile_load(addr as *const u64)) }
   }
   fn set_entry(&self, index: usize, value: ArchPageTableEntry) {
-    let addr = pa2kva(pte2pa(self.to_usize()) + index * 8);
+    let addr = pa2kva(pte2pa(self.to_usize()) + index * WORD_SIZE);
     unsafe { core::intrinsics::volatile_store(addr as *mut u64, value.to_u64()) }
   }
 }
@@ -101,7 +100,7 @@ fn alloc_page_table() -> ArchPageTableEntry {
   let frame = crate::mm::page_pool::alloc();
   crate::mm::page_pool::increase_rc(frame);
   ArchPageTableEntry::from(PageTableEntry {
-    attr: PageTableEntryAttr::user_page_table_frame(),
+    attr: PageTableEntryAttr::readonly(),
     addr: frame.pa()
   })
 }
@@ -198,8 +197,46 @@ impl PageTableImpl for Aarch64PageTable {
     let directory = ArchPageTableEntry::new(self.directory.pa() as u64);
     let l1x = va / (1 << PAGE_TABLE_L1_SHIFT);
     directory.set_entry(l1x, ArchPageTableEntry::from(PageTableEntry {
-      attr: PageTableEntryAttr::user_page_table_frame(),
+      attr: PageTableEntryAttr::readonly(),
       addr: self.directory.pa()
     }));
+  }
+
+  fn destroy(&self) {
+    let directory = ArchPageTableEntry::new(self.directory.pa() as u64);
+    for l1x in 0..(PAGE_SIZE / WORD_SIZE) {
+      let l1e = directory.get_entry(l1x);
+      if !l1e.valid() {
+        continue;
+      }
+      for l2x in 0..(PAGE_SIZE / WORD_SIZE) {
+        let l2e = l1e.get_entry(l2x);
+        if !l2e.valid() {
+          continue;
+        }
+        for l3x in 0..(PAGE_SIZE / WORD_SIZE) {
+          let l3e = l2e.get_entry(l3x);
+          if !l3e.valid() {
+            continue;
+          }
+          let pa = pte2pa(l3e.to_usize());
+          if crate::config::paged_range().contains(&pa) {
+            let frame = PageFrame::new(pa);
+            crate::mm::page_pool::decrease_rc(frame);
+          }
+        }
+        let pa = pte2pa(l2e.to_usize());
+        if crate::config::paged_range().contains(&pa) {
+          let frame = PageFrame::new(pa);
+          crate::mm::page_pool::decrease_rc(frame);
+        }
+      }
+      let pa = pte2pa(l1e.to_usize());
+      if crate::config::paged_range().contains(&pa) {
+        let frame = PageFrame::new(pa);
+        crate::mm::page_pool::decrease_rc(frame);
+      }
+    }
+    // do not recycle directory page here!
   }
 }

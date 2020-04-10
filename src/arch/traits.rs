@@ -11,7 +11,7 @@ pub trait ContextFrameImpl: Default {
 
 use crate::mm::PageFrame;
 use arch::{PageTable, AddressSpaceId};
-use core::fmt::{Display, Formatter, Error};
+use core::fmt::{Display, Formatter};
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct PageTableEntryAttr {
@@ -85,7 +85,7 @@ impl PageTableEntryAttr {
       device: false,
     }
   }
-  pub const fn user_page_table_frame() -> Self {
+  pub const fn readonly() -> Self {
     PageTableEntryAttr {
       k_w: false,
       k_x: false,
@@ -149,9 +149,7 @@ impl PageTableEntryAttr {
 
 #[derive(Copy, Clone, Debug)]
 pub enum PageTableError {
-  VaAlreadyMapped,
   VaNotMapped,
-  VaRemoveFailed,
 }
 
 pub trait PageTableImpl {
@@ -163,6 +161,7 @@ pub trait PageTableImpl {
   fn lookup_page(&self, va: usize) -> Option<PageTableEntry>;
   fn remove_page(&self, va: usize) -> Result<(), PageTableError>;
   fn recursive_map(&self, va: usize);
+  fn destroy(&self);
 }
 
 pub trait Arch {

@@ -29,10 +29,10 @@ More OS design documents are coming!
 * Process management system calls (JOS styled)
 * A user `fork` demo
 * Copy on Write page fault management
+* Inter-process communication(IPC) system calls
 
 **Todo:**
 * Code refactoring
-* Inter-process communication(IPC) system calls
 * and so on...
 
 **Building & emulating on Windows!**

@@ -17,14 +17,14 @@ extern crate xmas_elf;
 
 #[macro_export]
 macro_rules! print {
-    ($($arg:tt)*) => ($crate::lib::print_arg(format_args!($($arg)*)));
+    ($($arg:tt)*) => ($crate::lib::print::print_arg(format_args!($($arg)*)));
 }
 
 #[macro_export]
 macro_rules! println {
     () => ($crate::print!("\n"));
     ($($arg:tt)*) => ({
-        $crate::lib::print_arg(format_args_nl!($($arg)*));
+        $crate::lib::print::print_arg(format_args_nl!($($arg)*));
     })
 }
 
@@ -36,26 +36,20 @@ mod mm;
 mod config;
 
 use arch::*;
-use config::*;
-
-use lib::user_image::*;
-use lib::scheduler::{SCHEDULER, Scheduler};
 
 #[no_mangle]
-pub unsafe fn main() -> ! {
-  driver::uart::uart_init();
+pub fn main() -> ! {
+  driver::uart::init();
   ARCH.exception_init();
-
-  println!("Heap  Pool     {:08x}~{:08x}", heap_range().start, heap_range().end);
-  println!("Paged Pool     {:08x}~{:08x}", paged_range().start, paged_range().end);
-  mm::heap::init(heap_range());
-  mm::page_pool::init(paged_range());
-
-  driver::timer::timer_init();
+  mm::heap::init(config::heap_range());
+  mm::page_pool::init(config::paged_range());
+  driver::timer::init();
   lib::process_pool::init();
 
-  lib::process::Pid::create(&_binary_user_elf_start, 0);
-  SCHEDULER.schedule(lib::process_pool::pid_list());
+  unsafe {
+    lib::process::Process::create(&lib::user_image::_binary_user_elf_start, 1);
+    lib::scheduler::schedule();
+  }
   // kernel mode -> user mode
   ARCH.start_first_process()
 }

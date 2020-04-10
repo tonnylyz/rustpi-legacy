@@ -1,8 +1,8 @@
+use arch::*;
+use mm::PageFrame;
+use spin::Mutex;
 use alloc::vec::Vec;
 use core::ops::Range;
-use arch::*;
-use mm::*;
-use spin::Mutex;
 
 #[derive(Copy, Clone, Debug)]
 pub enum PagePoolError {
@@ -32,6 +32,8 @@ pub trait PagePoolImpl {
 
   fn ppn(&self, frame: PageFrame) -> usize;
   fn in_pool(&self, frame: PageFrame) -> bool;
+
+  fn report(&self);
 }
 
 impl PagePoolImpl for PagePool {
@@ -89,13 +91,12 @@ impl PagePoolImpl for PagePool {
       return Err(PageFrameNotManaged);
     }
     let ppn = self.ppn(frame);
-    let val = self.rc[ppn];
-    if val == 0 {
+    self.rc[ppn] -= 1;
+    if self.rc[ppn] == 0 {
       self.free(frame);
       return Ok(0);
     }
-    self.rc[ppn] -= 1;
-    Ok(val - 1)
+    Ok(self.rc[ppn])
   }
 
   fn get_rc(&self, frame: PageFrame) -> Result<u8, PagePoolError> {
@@ -113,6 +114,12 @@ impl PagePoolImpl for PagePool {
 
   fn in_pool(&self, frame: PageFrame) -> bool {
     self.start <= frame.pa() && frame.pa() < self.end
+  }
+
+  fn report(&self) {
+    println!("page_pool report");
+    println!("free:      0x{:08x}", self.free.len());
+    println!("allocated: 0x{:08x}", self.alloced.len());
   }
 }
 
@@ -140,7 +147,6 @@ pub fn alloc() -> PageFrame {
   let mut pool = PAGE_POOL.lock();
   if let Ok(frame) = pool.alloc() {
     drop(pool);
-    println!("page pool alloc {:08x}", frame.pa());
     frame
   } else {
     panic!("page_pool alloc failed")
@@ -163,5 +169,11 @@ pub fn increase_rc(frame: PageFrame) {
 pub fn decrease_rc(frame: PageFrame) {
   let mut pool = PAGE_POOL.lock();
   let _r = pool.decrease_rc(frame);
+  drop(pool);
+}
+
+pub fn report() {
+  let pool = PAGE_POOL.lock();
+  pool.report();
   drop(pool);
 }

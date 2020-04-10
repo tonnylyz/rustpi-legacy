@@ -1,10 +1,8 @@
-use lib::process::*;
-use lib::syscall::SystemCallError::*;
 use arch::*;
-use lib::process_pool::ProcessPoolError;
 use config::*;
-use core::intrinsics::size_of;
-use mm::PageFrame;
+use lib::process::*;
+use lib::process_pool::ProcessPoolError;
+use lib::process::ProcessStatus::{PsRunnable, PsNotRunnable};
 
 pub enum SystemCallError {
   ScePidNotFound = 1,
@@ -17,7 +15,9 @@ pub enum SystemCallError {
   SceCurrentProcessNone = 8,
   SceProcessPoolError = 9,
   SceIpcNotReceiving = 10,
+  SceInvalidArgument = 11,
 }
+use self::SystemCallError::*;
 
 impl core::convert::From<PageTableError> for SystemCallError {
   fn from(_: PageTableError) -> Self {
@@ -46,20 +46,18 @@ pub trait SystemCallImpl {
 
   fn ipc_receive(dst_va: usize);
   fn ipc_can_send(pid: u16, value: usize, src_va: usize, perm: usize) -> Result<(), SystemCallError>;
-
-  fn process_set_context_frame(addr: usize);
 }
 
 pub struct SystemCall;
 
-fn lookup_pid(pid: u16, check_parent: bool) -> Result<Pid, SystemCallError> {
+fn lookup_pid(pid: u16, check_parent: bool) -> Result<Process, SystemCallError> {
   use lib::process_pool::*;
   if pid == 0 {
     unsafe {
       Ok(CURRENT_PROCESS.ok_or_else(|| SceCurrentProcessNone)?)
     }
   } else {
-    if let Some(p) = lookup(pid) {
+    if let Some(p) = lookup(Process::new(pid)) {
       if check_parent {
         if let Some(parent) = p.parent(){
           unsafe {
@@ -83,7 +81,7 @@ fn lookup_pid(pid: u16, check_parent: bool) -> Result<Pid, SystemCallError> {
 
 impl SystemCallImpl for SystemCall {
   fn putc(c: char) {
-    crate::driver::uart::uart_putc(c as u8);
+    crate::driver::uart::putc(c as u8);
   }
 
   fn getpid() -> u16 {
@@ -93,11 +91,7 @@ impl SystemCallImpl for SystemCall {
   }
 
   fn process_yield() {
-    use lib::scheduler::{SCHEDULER, Scheduler};
-    use lib::process_pool::pid_list;
-    unsafe {
-      SCHEDULER.schedule(pid_list());
-    }
+    crate::lib::scheduler::schedule();
   }
 
   fn process_destroy(pid: u16) -> Result<(), SystemCallError> {
@@ -178,6 +172,9 @@ impl SystemCallImpl for SystemCall {
   }
 
   fn process_set_status(pid: u16, status: ProcessStatus) -> Result<(), SystemCallError> {
+    if status != PsRunnable && status != PsNotRunnable {
+      return Err(SceInvalidArgument);
+    }
     let p = lookup_pid(pid, true)?;
     unsafe {
       (*p.pcb()).status = status;
@@ -188,8 +185,8 @@ impl SystemCallImpl for SystemCall {
   fn ipc_receive(dst_va: usize) {
     unsafe {
       let p = CURRENT_PROCESS.unwrap();
-      (*p.pcb()).ipc_dst_attr = dst_va;
-      (*p.pcb()).ipc_receiving = true;
+      (*p.ipc()).ipc_dst_attr = dst_va;
+      (*p.ipc()).ipc_receiving = true;
       (*p.pcb()).status = ProcessStatus::PsNotRunnable;
       SystemCall::process_yield();
     }
@@ -198,25 +195,14 @@ impl SystemCallImpl for SystemCall {
   fn ipc_can_send(pid: u16, value: usize, src_va: usize, attr: usize) -> Result<(), SystemCallError> {
     let p = lookup_pid(pid, false)?;
     unsafe {
-      if !(*p.pcb()).ipc_receiving {
+      if !(*p.ipc()).ipc_receiving {
         return Err(SceIpcNotReceiving);
       }
-      (*p.pcb()).ipc_receiving = false;
-      (*p.pcb()).ipc_from = Some(CURRENT_PROCESS.unwrap());
-      (*p.pcb()).ipc_value = value;
+      (*p.ipc()).ipc_receiving = false;
+      (*p.ipc()).ipc_from = CURRENT_PROCESS.unwrap().pid();
+      (*p.ipc()).ipc_value = value;
       (*p.pcb()).status = ProcessStatus::PsRunnable;
       Ok(())
-    }
-  }
-
-  fn process_set_context_frame(addr: usize) {
-    unsafe {
-      let page_table = (*CURRENT_PROCESS.unwrap().pcb()).directory.unwrap();
-      if let Some(pte) = page_table.lookup_page(addr) {
-        core::intrinsics::volatile_copy_memory((&mut CONTEXT_FRAME) as *mut ContextFrame, (PageFrame::new(pte.addr).kva()) as *const ContextFrame, size_of::<ContextFrame>());
-      } else {
-        println!("process_set_context_frame not existed");
-      }
     }
   }
 }

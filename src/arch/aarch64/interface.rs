@@ -3,7 +3,6 @@
 use arch::traits::{Arch,PageTableImpl};
 use mm::PageFrame;
 use arch::aarch64::exception::Aarch64ContextFrame;
-use arch::{PageTableEntry, PageTableEntryAttr, pte2pa};
 
 #[repr(transparent)]
 #[derive(Copy, Clone, Debug)]

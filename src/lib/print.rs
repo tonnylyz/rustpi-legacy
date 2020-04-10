@@ -7,7 +7,7 @@ static mut WRITER: Writer = Writer;
 impl fmt::Write for Writer {
   fn write_str(&mut self, s: &str) -> fmt::Result {
     for b in s.bytes() {
-      crate::driver::uart::uart_putc(b);
+      crate::driver::uart::putc(b);
     }
     Ok(())
   }

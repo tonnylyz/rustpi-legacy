@@ -16,7 +16,9 @@ SECTIONS
     .data : {
         *(.data*)
     }
+    . = ALIGN(4096);
     .bss : {
+        *(.bss.ipc)
         *(.bss*)
     }
     /DISCARD/ : {

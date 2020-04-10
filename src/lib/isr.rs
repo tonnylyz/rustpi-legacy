@@ -1,10 +1,10 @@
-use cortex_a::regs::{RegisterReadWrite, RegisterReadOnly};
-use lib::scheduler::Scheduler;
+use cortex_a::regs::{RegisterReadWrite};
 use arch::{CONTEXT_FRAME, ContextFrameImpl};
-use lib::process::{ProcessStatus, CURRENT_PROCESS};
+use lib::process::CURRENT_PROCESS;
 use config::{CONFIG_USER_LIMIT};
 use mm::PageFrame;
 use core::intrinsics::size_of;
+use lib::process::ProcessStatus::{PsRunnable, PsNotRunnable, PsFree};
 
 pub trait InterruptServiceRoutine {
   fn system_call(&self);
@@ -64,11 +64,12 @@ impl InterruptServiceRoutine for Isr {
           }
         }
         10 => {
-          match SystemCall::process_set_status(arg(0) as u16, match arg(1) {
-            1 => ProcessStatus::PsRunnable,
-            2 => ProcessStatus::PsNotRunnable,
-            _ => ProcessStatus::PsNotRunnable, // TODO: handle this invalid argument
-          }) {
+          let ps = match arg(1) {
+            1 => { PsRunnable },
+            2 => { PsNotRunnable },
+            _ => { PsFree }
+          };
+          match SystemCall::process_set_status(arg(0) as u16, ps) {
             Ok(_) => {r = None},
             Err(e) => {r = Some(e as usize)},
           }
@@ -78,12 +79,11 @@ impl InterruptServiceRoutine for Isr {
         }
         12 => {
           match SystemCall::ipc_can_send(arg(0) as u16, arg(1), arg(2), arg(3)) {
-            Ok(_) => {r = None},
+            Ok(_) => {r = Some(0)},
             Err(e) => {r = Some(e as usize)},
           }
         }
-        13 => SystemCall::process_set_context_frame(arg(0)),
-        _ => { println!("Unrecognized system call number"); println!("{:?}", CONTEXT_FRAME); }
+        _ => { println!("system call: unrecognized system call number"); }
       }
       if let Some(value) = r {
         CONTEXT_FRAME.set_syscall_return_value(value);
@@ -93,10 +93,8 @@ impl InterruptServiceRoutine for Isr {
   fn interrupt_request(&self) {
     //println!("InterruptServiceRoutine: interrupt_request");
     //println!("{}", unsafe { CONTEXT_FRAME });
-    crate::driver::timer::timer_next(0);
-    unsafe {
-      super::scheduler::SCHEDULER.schedule(super::process_pool::pid_list());
-    }
+    crate::driver::timer::next(0);
+    crate::lib::scheduler::schedule();
   }
   fn page_fault(&self) {
     use arch::*;
@@ -112,19 +110,20 @@ impl InterruptServiceRoutine for Isr {
               assert!(size_of::<ContextFrame>() < PAGE_SIZE);
               let stack_top = (*p.pcb()).exception_stack_top;
               let stack_btm = stack_top - PAGE_SIZE;
-              let stack_pte = page_table.lookup_page(stack_btm).unwrap();
-              let stack_frame = PageFrame::new(stack_pte.addr);
-              core::intrinsics::volatile_copy_memory(
-                (stack_frame.kva() + PAGE_SIZE - size_of::<ContextFrame>()) as *mut ContextFrame,
-                (&CONTEXT_FRAME) as *const ContextFrame,
-                1
-              );
-              let mut ctx = CONTEXT_FRAME.clone();
-              ctx.set_exception_pc((*p.pcb()).exception_handler);
-              ctx.set_stack_pointer(stack_top - size_of::<ContextFrame>());
-              ctx.set_argument(va);
-              CONTEXT_FRAME = ctx;
-              return;
+              if let Some(stack_pte) = page_table.lookup_page(stack_btm) {
+                let stack_frame = PageFrame::new(stack_pte.addr);
+                core::intrinsics::volatile_copy_memory(
+                  (stack_frame.kva() + PAGE_SIZE - size_of::<ContextFrame>()) as *mut ContextFrame,
+                  (&CONTEXT_FRAME) as *const ContextFrame,
+                  1
+                );
+                let mut ctx = CONTEXT_FRAME.clone();
+                ctx.set_exception_pc((*p.pcb()).exception_handler);
+                ctx.set_stack_pointer(stack_top - size_of::<ContextFrame>());
+                ctx.set_argument(va);
+                CONTEXT_FRAME = ctx;
+                return;
+              }
             }
           }
         }
@@ -149,11 +148,14 @@ impl InterruptServiceRoutine for Isr {
     //    }
     //  }
     //}
-    println!("\nInterruptServiceRoutine: page_fault");
-    println!("esr: {:016x}", cortex_a::regs::ESR_EL1.get());
-    println!("CONTEXT_FRAME:\n{}", unsafe { CONTEXT_FRAME });
-    println!("{}", unsafe { *CURRENT_PROCESS.unwrap().pcb() });
-    panic!("InterruptServiceRoutine: page_fault");
+    unsafe {
+      println!("\nInterruptServiceRoutine: page_fault");
+      println!("far: {:016x}", cortex_a::regs::FAR_EL1.get());
+      println!("{:?}", (*(CURRENT_PROCESS.unwrap().pcb())).directory.unwrap().lookup_page(cortex_a::regs::FAR_EL1.get() as usize));
+      println!("CONTEXT_FRAME:\n{}", CONTEXT_FRAME);
+      println!("{}", *CURRENT_PROCESS.unwrap().pcb());
+      panic!("InterruptServiceRoutine: page_fault");
+    }
   }
   fn default(&self) {
     panic!("InterruptServiceRoutine: default");

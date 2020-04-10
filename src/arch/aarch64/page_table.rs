@@ -15,13 +15,13 @@ trait VirtualAddress {
 
 impl VirtualAddress for usize {
   fn l1x(&self) -> usize {
-    self >> PAGE_TABLE_L1_SHIFT & (PAGE_SIZE / WORD_SIZE - 1)
+    self >> PAGE_TABLE_L1_SHIFT & (PAGE_SIZE / MACHINE_SIZE - 1)
   }
   fn l2x(&self) -> usize {
-    self >> PAGE_TABLE_L2_SHIFT & (PAGE_SIZE / WORD_SIZE - 1)
+    self >> PAGE_TABLE_L2_SHIFT & (PAGE_SIZE / MACHINE_SIZE - 1)
   }
   fn l3x(&self) -> usize {
-    self >> PAGE_TABLE_L3_SHIFT & (PAGE_SIZE / WORD_SIZE - 1)
+    self >> PAGE_TABLE_L3_SHIFT & (PAGE_SIZE / MACHINE_SIZE - 1)
   }
 }
 
@@ -87,11 +87,11 @@ impl TableDescriptor for ArchPageTableEntry {
     self.to_usize() & 0b11 != 0
   }
   fn get_entry(&self, index: usize) -> ArchPageTableEntry {
-    let addr = pa2kva(pte2pa(self.to_usize()) + index * WORD_SIZE);
+    let addr = pa2kva(pte2pa(self.to_usize()) + index * MACHINE_SIZE);
     unsafe { ArchPageTableEntry::new(core::intrinsics::volatile_load(addr as *const u64)) }
   }
   fn set_entry(&self, index: usize, value: ArchPageTableEntry) {
-    let addr = pa2kva(pte2pa(self.to_usize()) + index * WORD_SIZE);
+    let addr = pa2kva(pte2pa(self.to_usize()) + index * MACHINE_SIZE);
     unsafe { core::intrinsics::volatile_store(addr as *mut u64, value.to_u64()) }
   }
 }
@@ -148,7 +148,7 @@ impl PageTableImpl for Aarch64PageTable {
     if let Some(p) = self.lookup_page(va) {
       if p.addr != pa {
         // replace mapped frame
-        self.remove_page(va);
+        self.remove_page(va)?;
       } else {
         // update attribute
         ARCH.invalidate_tlb();
@@ -204,17 +204,17 @@ impl PageTableImpl for Aarch64PageTable {
 
   fn destroy(&self) {
     let directory = ArchPageTableEntry::new(self.directory.pa() as u64);
-    for l1x in 0..(PAGE_SIZE / WORD_SIZE) {
+    for l1x in 0..(PAGE_SIZE / MACHINE_SIZE) {
       let l1e = directory.get_entry(l1x);
       if !l1e.valid() {
         continue;
       }
-      for l2x in 0..(PAGE_SIZE / WORD_SIZE) {
+      for l2x in 0..(PAGE_SIZE / MACHINE_SIZE) {
         let l2e = l1e.get_entry(l2x);
         if !l2e.valid() {
           continue;
         }
-        for l3x in 0..(PAGE_SIZE / WORD_SIZE) {
+        for l3x in 0..(PAGE_SIZE / MACHINE_SIZE) {
           let l3e = l2e.get_entry(l3x);
           if !l3e.valid() {
             continue;

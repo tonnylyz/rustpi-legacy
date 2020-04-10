@@ -109,18 +109,7 @@ impl PageTableEntryAttr {
       device: true,
     }
   }
-  pub const fn copy_on_write() -> Self {
-    PageTableEntryAttr {
-      k_w: false,
-      k_x: false,
-      u_r: false,
-      u_w: false,
-      u_x: false,
-      copy_on_write: true,
-      shared: false,
-      device: false,
-    }
-  }
+  #[allow(dead_code)]
   pub const fn writable() -> Self {
     PageTableEntryAttr {
       k_w: true,
@@ -130,18 +119,6 @@ impl PageTableEntryAttr {
       u_x: false,
       copy_on_write: false,
       shared: false,
-      device: false,
-    }
-  }
-  pub const fn shared() -> Self {
-    PageTableEntryAttr {
-      k_w: false,
-      k_x: false,
-      u_r: false,
-      u_w: false,
-      u_x: false,
-      copy_on_write: false,
-      shared: true,
       device: false,
     }
   }

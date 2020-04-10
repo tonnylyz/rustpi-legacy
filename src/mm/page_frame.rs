@@ -23,11 +23,13 @@ impl PageFrame {
       core::intrinsics::volatile_set_memory(self.kva() as *mut u8, 0, PAGE_SIZE);
     }
   }
+  #[allow(dead_code)]
   pub fn copy_to(&self, dest: &PageFrame) {
     unsafe {
       core::intrinsics::volatile_copy_memory(dest.kva() as *mut u8, self.kva() as *mut u8, PAGE_SIZE);
     }
   }
+  #[allow(dead_code)]
   pub fn copy_from(&self, src: &PageFrame) {
     unsafe {
       core::intrinsics::volatile_copy_memory(self.kva() as *mut u8, src.kva() as *mut u8, PAGE_SIZE);

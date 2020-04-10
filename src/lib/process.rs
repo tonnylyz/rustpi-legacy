@@ -3,6 +3,8 @@ use config::*;
 use core::fmt::{Display, Formatter};
 use core::intrinsics::size_of;
 
+pub type Pid = u16;
+
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
 pub enum ProcessStatus {
   PsFree = 0,
@@ -13,8 +15,8 @@ pub enum ProcessStatus {
 #[repr(C, align(32))]
 #[derive(Copy, Clone)]
 pub struct InterProcessComm {
-  pub id: u16,
-  pub ipc_from: u16,
+  pub id: Pid,
+  pub ipc_from: Pid,
   pub ipc_receiving: bool,
   pub ipc_value: usize,
   pub ipc_dst_addr: usize,
@@ -34,7 +36,7 @@ pub static mut IPC_LIST: [InterProcessComm; CONFIG_PROCESS_NUMBER] = [InterProce
 
 #[derive(Copy, Clone, Debug)]
 pub struct ProcessControlBlock {
-  pub id: u16,
+  pub id: Pid,
   pub parent: Option<Process>,
   pub directory: Option<PageTable>,
   pub context: Option<ContextFrame>,
@@ -71,18 +73,18 @@ impl Display for ProcessControlBlock {
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct Process {
-  pid: u16
+  pid: Pid
 }
 
 impl Process {
-  pub fn new(pid: u16) -> Self {
+  pub fn new(pid: Pid) -> Self {
     assert_ne!(pid, 0);
     Process {
       pid,
     }
   }
   
-  pub fn pid(&self) -> u16 {
+  pub fn pid(&self) -> Pid {
     self.pid
   }
 
@@ -127,7 +129,10 @@ impl Process {
   fn load_image(&self, elf: &'static [u8]) {
     unsafe {
       let page_table = (*self.pcb()).directory.unwrap();
-      page_table.insert_page(CONFIG_USER_STACK_TOP - PAGE_SIZE, crate::mm::page_pool::alloc(), PageTableEntryAttr::user_default());
+      match page_table.insert_page(CONFIG_USER_STACK_TOP - PAGE_SIZE, crate::mm::page_pool::alloc(), PageTableEntryAttr::user_default()) {
+        Ok(_) => {},
+        Err(_) => { panic!("process: load_image page_table.insert_page failed") },
+      }
       let entry = super::elf::load_elf(elf, page_table);
       let mut ctx = (*self.pcb()).context.unwrap();
       ctx.set_exception_pc(entry);

@@ -49,7 +49,10 @@ pub unsafe fn load_elf(src: &'static [u8], page_table: PageTable) -> usize {
         //    println!();
         //  }
         //}
-        page_table.insert_page(i, frame, PageTableEntryAttr::user_default());
+        match page_table.insert_page(i, frame, PageTableEntryAttr::user_default()) {
+          Ok(_) => {},
+          Err(_) => { panic!("elf: page_table.insert_page") },
+        }
       }
     }
     entry_point

@@ -1,10 +1,11 @@
 use cortex_a::regs::{RegisterReadWrite};
 use arch::{CONTEXT_FRAME, ContextFrameImpl};
-use lib::process::CURRENT_PROCESS;
+use lib::process::*;
 use config::{CONFIG_USER_LIMIT};
 use mm::PageFrame;
 use core::intrinsics::size_of;
 use lib::process::ProcessStatus::{PsRunnable, PsNotRunnable, PsFree};
+use lib::syscall::SystemCallError;
 
 pub trait InterruptServiceRoutine {
   fn system_call(&self);
@@ -15,53 +16,84 @@ pub trait InterruptServiceRoutine {
 
 pub struct Isr;
 
+#[derive(Debug)]
+pub enum SystemCallResult {
+  Void,
+  Pid(Pid),
+  R(Option<isize>),
+}
+
+pub trait SystemCallResultOk {
+  fn to_isize(&self) -> isize;
+}
+
+impl SystemCallResultOk for () {
+  fn to_isize(&self) -> isize {
+    0
+  }
+}
+
+impl SystemCallResultOk for u16 {
+  fn to_isize(&self) -> isize {
+    self.clone() as isize
+  }
+}
+
+impl core::convert::From<Pid> for SystemCallResult {
+  fn from(pid: Pid) -> Self {
+    SystemCallResult::Pid(pid)
+  }
+}
+
+impl core::convert::From<()> for SystemCallResult {
+  fn from(_: ()) -> Self {
+    SystemCallResult::Void
+  }
+}
+
+impl<T> core::convert::From<Result<T, SystemCallError>> for SystemCallResult where T: SystemCallResultOk {
+  fn from(sce: Result<T, SystemCallError>) -> Self {
+    SystemCallResult::R(
+      match sce {
+        Ok(t) => { Some(t.to_isize()) },
+        Err(e) => { Some(- (e as isize)) },
+      }
+    )
+  }
+}
+
 impl InterruptServiceRoutine for Isr {
   fn system_call(&self) {
     use lib::syscall::*;
     unsafe {
-      let mut r: Option<usize> = None;
       let arg = |i: usize| { CONTEXT_FRAME.get_syscall_argument(i) };
-      match CONTEXT_FRAME.get_syscall_number() {
-        1 => SystemCall::putc(arg(0) as u8 as char),
+      let scr = match CONTEXT_FRAME.get_syscall_number() {
+        1 =>  {
+          SystemCall::putc(arg(0) as u8 as char).into()
+        },
         2 => {
-          r = Some(SystemCall::getpid() as usize);
+          SystemCall::getpid().into()
         }
-        3 => SystemCall::process_yield(),
+        3 => {
+          SystemCall::process_yield().into()
+        },
         4 => {
-          match SystemCall::process_destroy(arg(0) as u16) {
-            Ok(_) => {r = None},
-            Err(e) => {r = Some(e as usize)},
-          }
+          SystemCall::process_destroy(arg(0) as u16).into()
         }
         5 => {
-          match SystemCall::process_set_exception_handler(arg(0) as u16, arg(1), arg(2)) {
-            Ok(_) => {r = None},
-            Err(e) => {r = Some(e as usize)},
-          }
+          SystemCall::process_set_exception_handler(arg(0) as u16, arg(1), arg(2)).into()
         }
         6 => {
-          match SystemCall::mem_alloc(arg(0) as u16, arg(1), arg(2)) {
-            Ok(_) => {r = None},
-            Err(e) => {r = Some(e as usize)},
-          }
+          SystemCall::mem_alloc(arg(0) as u16, arg(1), arg(2)).into()
         }
         7 => {
-          match SystemCall::mem_map(arg(0) as u16, arg(1), arg(2) as u16, arg(3), arg(4)) {
-            Ok(_) => {r = None},
-            Err(e) => {r = Some(e as usize)},
-          }
+          SystemCall::mem_map(arg(0) as u16, arg(1), arg(2) as u16, arg(3), arg(4)).into()
         }
         8 => {
-          match SystemCall::mem_unmap(arg(0) as u16, arg(1)) {
-            Ok(_) => {r = None},
-            Err(e) => {r = Some(e as usize)},
-          }
+          SystemCall::mem_unmap(arg(0) as u16, arg(1)).into()
         }
         9 => {
-          match SystemCall::process_alloc() {
-            Ok(pid) => {r = Some(pid as usize) },
-            Err(e) => {r = Some(usize::max_value() - e as usize) },
-          }
+          SystemCall::process_alloc().into()
         }
         10 => {
           let ps = match arg(1) {
@@ -69,24 +101,28 @@ impl InterruptServiceRoutine for Isr {
             2 => { PsNotRunnable },
             _ => { PsFree }
           };
-          match SystemCall::process_set_status(arg(0) as u16, ps) {
-            Ok(_) => {r = None},
-            Err(e) => {r = Some(e as usize)},
-          }
+          SystemCall::process_set_status(arg(0) as u16, ps).into()
         }
         11 => {
-          SystemCall::ipc_receive(arg(0));
+          SystemCall::ipc_receive(arg(0)).into()
         }
         12 => {
-          match SystemCall::ipc_can_send(arg(0) as u16, arg(1), arg(2), arg(3)) {
-            Ok(_) => {r = Some(0)},
-            Err(e) => {r = Some(e as usize)},
-          }
+          SystemCall::ipc_can_send(arg(0) as u16, arg(1), arg(2), arg(3)).into()
         }
-        _ => { println!("system call: unrecognized system call number"); }
-      }
-      if let Some(value) = r {
-        CONTEXT_FRAME.set_syscall_return_value(value);
+        _ => { println!("system call: unrecognized system call number").into() }
+      };
+      match scr {
+        SystemCallResult::Void => {},
+        SystemCallResult::Pid(pid) => {
+          //println!("{}:{:?}", CONTEXT_FRAME.get_syscall_number(), scr);
+          CONTEXT_FRAME.set_syscall_return_value(pid as usize);
+        },
+        SystemCallResult::R(o) => {
+          //println!("{}:{:?}", CONTEXT_FRAME.get_syscall_number(), scr);
+          match o {
+          None => {CONTEXT_FRAME.set_syscall_return_value(0);},
+          Some(i) => {CONTEXT_FRAME.set_syscall_return_value(i as usize);},
+        }},
       }
     }
   }

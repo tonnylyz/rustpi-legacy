@@ -8,7 +8,7 @@ clean:
 	cargo clean
 
 kernel:
-	cargo xbuild --target aarch64-none-elf.json --release --verbose
+	cargo xbuild --target aarch64-none-elf.json --release
 	cp target/aarch64-none-elf/release/rustpi kernel.elf
 	aarch64-elf-objcopy kernel.elf -O binary kernel8.img
 	aarch64-elf-objdump -D kernel.elf > debug.D

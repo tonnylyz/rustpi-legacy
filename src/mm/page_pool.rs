@@ -93,7 +93,7 @@ impl PagePoolImpl for PagePool {
     let ppn = self.ppn(frame);
     self.rc[ppn] -= 1;
     if self.rc[ppn] == 0 {
-      self.free(frame);
+      self.free(frame)?;
       return Ok(0);
     }
     Ok(self.rc[ppn])
@@ -153,13 +153,6 @@ pub fn alloc() -> PageFrame {
   }
 }
 
-pub fn free(frame: PageFrame) -> bool {
-  let mut pool = PAGE_POOL.lock();
-  let r = pool.free(frame).is_ok();
-  drop(pool);
-  r
-}
-
 pub fn increase_rc(frame: PageFrame) {
   let mut pool = PAGE_POOL.lock();
   let _r = pool.increase_rc(frame);
@@ -172,6 +165,7 @@ pub fn decrease_rc(frame: PageFrame) {
   drop(pool);
 }
 
+#[allow(dead_code)]
 pub fn report() {
   let pool = PAGE_POOL.lock();
   pool.report();

@@ -18,6 +18,7 @@ pub enum SystemCallError {
   SceInvalidArgument = 11,
 }
 use self::SystemCallError::*;
+use mm::PageFrame;
 
 impl core::convert::From<PageTableError> for SystemCallError {
   fn from(_: PageTableError) -> Self {
@@ -121,7 +122,7 @@ impl SystemCallImpl for SystemCall {
       let page_table = (*p.pcb()).directory.ok_or_else(|| SceProcessDirectoryNone)?;
       let attr = PageTableEntry::from(ArchPageTableEntry::new(attr as u64)).attr;
       //println!("mem alloc [{:016x}] [{:?}]", va, attr);
-      page_table.insert_page(va, frame, attr);
+      page_table.insert_page(va, frame, attr)?;
     }
     Ok(())
   }
@@ -158,7 +159,7 @@ impl SystemCallImpl for SystemCall {
     Ok(())
   }
 
-  fn process_alloc() -> Result<u16, SystemCallError> {
+  fn process_alloc() -> Result<Pid, SystemCallError> {
     use lib::*;
     unsafe {
       let p = CURRENT_PROCESS.unwrap();
@@ -197,6 +198,16 @@ impl SystemCallImpl for SystemCall {
     unsafe {
       if !(*p.ipc()).ipc_receiving {
         return Err(SceIpcNotReceiving);
+      }
+      if src_va != 0 {
+        let page_table = (*p.pcb()).directory.ok_or_else(|| SceProcessDirectoryNone)?;
+        if let Some(pte) = page_table.lookup_page(src_va) {
+          let attr = PageTableEntry::from(ArchPageTableEntry::new(attr as u64)).attr;
+          // TODO: specify page permission
+          page_table.insert_page((*p.ipc()).ipc_dst_addr, PageFrame::new(pte.addr), attr)?;
+        } else {
+          return Err(SceInvalidArgument);
+        }
       }
       (*p.ipc()).ipc_receiving = false;
       (*p.ipc()).ipc_from = CURRENT_PROCESS.unwrap().pid();

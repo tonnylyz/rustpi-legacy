@@ -1,5 +1,5 @@
 use config::*;
-use lib::process::{Process, ProcessStatus};
+use lib::process::{Process, ProcessStatus, Pid};
 use alloc::vec::Vec;
 use spin::Mutex;
 
@@ -17,7 +17,7 @@ use self::ProcessPoolError::*;
 impl ProcessPool {
   fn init(&mut self) {
     for index in 0..CONFIG_PROCESS_NUMBER {
-      let pid = (index + 1) as u16;
+      let pid = (index + 1) as Pid;
       let p = Process::new(pid);
       unsafe {
         (*p.pcb()).id = pid;
@@ -97,7 +97,10 @@ pub fn alloc(parent: Option<Process>, arg: usize) -> Result<Process, ProcessPool
 
 pub fn free(p: Process) {
   let mut pool = PROCESS_POOL.lock();
-  pool.free(p);
+  match pool.free(p) {
+    Ok(_) => {},
+    Err(_) => { panic!("process_pool: free failed") },
+  }
   drop(pool);
 }
 

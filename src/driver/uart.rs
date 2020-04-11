@@ -1,4 +1,6 @@
-use super::mmio::{mmio_read, mmio_write};
+use arch::{Arch, ArchTrait};
+
+use super::mmio::{read_word, write_word};
 
 const GPFSEL1: usize = 0xFFFFFF8000000000 + 0x3F200004;
 const GPPUD: usize = 0xFFFFFF8000000000 + 0x3F200094;
@@ -16,45 +18,45 @@ const AUX_MU_BAUD_REG: usize = 0xFFFFFF8000000000 + 0x3F215068;
 
 fn clock_delay(n: u32) -> () {
   for _ in 0..n {
-    cortex_a::asm::nop();
+    Arch::nop();
   }
 }
 
 pub fn init() -> () {
   unsafe {
-    mmio_write(AUX_ENABLES, 1);
-    mmio_write(AUX_MU_IER_REG, 0);
-    mmio_write(AUX_MU_CNTL_REG, 0);
-    mmio_write(AUX_MU_LCR_REG, 3);
-    mmio_write(AUX_MU_MCR_REG, 0);
-    mmio_write(AUX_MU_IER_REG, 0);
-    mmio_write(AUX_MU_IIR_REG, 0xC6);
-    mmio_write(AUX_MU_BAUD_REG, 270);
+    write_word(AUX_ENABLES, 1);
+    write_word(AUX_MU_IER_REG, 0);
+    write_word(AUX_MU_CNTL_REG, 0);
+    write_word(AUX_MU_LCR_REG, 3);
+    write_word(AUX_MU_MCR_REG, 0);
+    write_word(AUX_MU_IER_REG, 0);
+    write_word(AUX_MU_IIR_REG, 0xC6);
+    write_word(AUX_MU_BAUD_REG, 270);
 
-    let mut ra = mmio_read(GPFSEL1);
+    let mut ra = read_word(GPFSEL1);
     ra &= !(7u32 << 12);
     ra |= 2u32 << 12;
     ra &= !(7u32 << 15);
     ra |= 2u32 << 15;
-    mmio_write(GPFSEL1, ra);
-    mmio_write(GPPUD, 0);
+    write_word(GPFSEL1, ra);
+    write_word(GPPUD, 0);
     clock_delay(150);
-    mmio_write(GPPUDCLK0, (1u32 << 14) | (1u32 << 15));
+    write_word(GPPUDCLK0, (1u32 << 14) | (1u32 << 15));
     clock_delay(150);
-    mmio_write(GPPUDCLK0, 0);
-    mmio_write(AUX_MU_CNTL_REG, 3);
+    write_word(GPPUDCLK0, 0);
+    write_word(AUX_MU_CNTL_REG, 3);
   }
 }
 
 fn send(c: u8) {
   unsafe {
     loop {
-      if (mmio_read(AUX_MU_LSR_REG) & 0x20) != 0 {
+      if (read_word(AUX_MU_LSR_REG) & 0x20) != 0 {
         break;
       }
-      cortex_a::asm::nop();
+      Arch::nop();
     }
-    mmio_write(AUX_MU_IO_REG, c as u32);
+    write_word(AUX_MU_IO_REG, c as u32);
   }
 }
 

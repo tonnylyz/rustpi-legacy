@@ -1,4 +1,6 @@
 use arch::*;
+use lib::page_table::{EntryAttribute, PageTableEntryAttrTrait, PageTableTrait};
+
 use crate::mm::PageFrame;
 
 unsafe fn memcpy(src: &'static [u8], offset: usize, dest: PageFrame, length: usize) {
@@ -8,6 +10,7 @@ unsafe fn memcpy(src: &'static [u8], offset: usize, dest: PageFrame, length: usi
   }
 }
 
+// TODO: make a robuster elf loader
 pub unsafe fn load_elf(src: &'static [u8], page_table: PageTable) -> usize {
   use xmas_elf::*;
   if let Ok(elf) = ElfFile::new(src) {
@@ -17,7 +20,7 @@ pub unsafe fn load_elf(src: &'static [u8], page_table: PageTable) -> usize {
       if let Ok(program::Type::Load) = program_header.get_type() {
         /* Ignore types other than `Load` */
       } else {
-        continue
+        continue;
       }
       let va = program_header.virtual_addr() as usize;
       let file_size = program_header.file_size() as usize;
@@ -30,7 +33,6 @@ pub unsafe fn load_elf(src: &'static [u8], page_table: PageTable) -> usize {
         if i + PAGE_SIZE > va + mem_size {
           // last page
           if i > va + file_size {
-            // clean mem exceeded file size
             frame.zero();
           } else {
             memcpy(src, offset + i - va, frame, va + file_size - i);
@@ -42,16 +44,15 @@ pub unsafe fn load_elf(src: &'static [u8], page_table: PageTable) -> usize {
             memcpy(src, offset + i - va, frame, PAGE_SIZE);
           }
         }
-
         //for i in (0..PAGE_SIZE).step_by(4) {
         //  print!("{:08x}", *((i + frame.kva()) as *const u32));
         //  if (i + 1) % (8 * 2) == 0 {
         //    println!();
         //  }
         //}
-        match page_table.insert_page(i, frame, PageTableEntryAttr::user_default()) {
-          Ok(_) => {},
-          Err(_) => { panic!("elf: page_table.insert_page") },
+        match page_table.insert_page(i, frame, EntryAttribute::user_default()) {
+          Ok(_) => {}
+          Err(_) => { panic!("elf: page_table.insert_page") }
         }
       }
     }

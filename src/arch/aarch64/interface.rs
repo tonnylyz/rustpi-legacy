@@ -1,54 +1,47 @@
-// export types and functions
+use cortex_a::{asm::*, regs::*};
 
-use arch::traits::{Arch,PageTableImpl};
-use mm::PageFrame;
-use arch::aarch64::exception::Aarch64ContextFrame;
+use lib::page_table::PageTableTrait;
 
-#[repr(transparent)]
-#[derive(Copy, Clone, Debug)]
-pub struct ArchPageTableEntry(u64);
+use crate::mm::PageFrame;
 
+pub type Arch = Aarch64Arch;
 
-impl ArchPageTableEntry {
-  pub fn new(value: u64) -> Self { ArchPageTableEntry(value) }
-  pub fn to_usize(&self) -> usize { self.0 as usize }
-  pub fn to_u64(&self) -> u64 { self.0 }
-}
+pub type ContextFrame = super::context_frame::Aarch64ContextFrame;
 
 pub type PageTable = super::page_table::Aarch64PageTable;
 
-pub type ContextFrame = super::exception::Aarch64ContextFrame;
+pub type ArchPageTableEntry = super::page_table::Aarch64PageTableEntry;
 
 pub type AddressSpaceId = u16;
 
 #[no_mangle]
-pub static mut CONTEXT_FRAME: ContextFrame = Aarch64ContextFrame::zero();
+pub static mut CONTEXT_FRAME: ContextFrame = super::context_frame::Aarch64ContextFrame::zero();
 
 pub struct Aarch64Arch;
 
-impl Arch for Aarch64Arch {
-  fn exception_init(&self) {
+impl crate::arch::ArchTrait for Aarch64Arch {
+  fn exception_init() {
     super::exception::init();
   }
 
-  fn start_first_process(&self) -> !{
+  fn start_first_process() -> ! {
     extern {
       fn pop_time_stack() -> !;
     }
     unsafe { pop_time_stack(); }
   }
 
-  fn get_kernel_page_table(&self) -> PageTable {
+  fn kernel_page_table() -> PageTable {
     let frame = PageFrame::new(cortex_a::regs::TTBR1_EL1.get_baddr() as usize);
     PageTable::new(frame)
   }
 
-  fn get_user_page_table(&self) -> PageTable {
+  fn user_page_table() -> PageTable {
     let frame = PageFrame::new(cortex_a::regs::TTBR0_EL1.get_baddr() as usize);
     PageTable::new(frame)
   }
 
-  fn set_user_page_table(&self, pt: PageTable, asid: AddressSpaceId) {
+  fn set_user_page_table(pt: PageTable, asid: AddressSpaceId) {
     use cortex_a::{regs::*, *};
     unsafe {
       TTBR0_EL1.write(TTBR0_EL1::ASID.val(asid as u64));
@@ -58,7 +51,7 @@ impl Arch for Aarch64Arch {
     }
   }
 
-  fn invalidate_tlb(&self) {
+  fn invalidate_tlb() {
     unsafe {
       asm!("dsb ishst");
       asm!("tlbi vmalle1is");
@@ -66,6 +59,16 @@ impl Arch for Aarch64Arch {
       asm!("isb");
     }
   }
-}
 
-pub static ARCH: Aarch64Arch = Aarch64Arch;
+  fn wait_for_event() {
+    wfe();
+  }
+
+  fn nop() {
+    nop();
+  }
+
+  fn fault_address() -> usize {
+    FAR_EL1.get() as usize
+  }
+}

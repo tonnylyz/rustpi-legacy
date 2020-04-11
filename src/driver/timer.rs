@@ -1,5 +1,6 @@
 use arch::*;
-use driver::mmio::mmio_writeb;
+use driver::mmio::write_byte;
+use lib::page_table::{EntryAttribute, PageTableEntryAttrTrait, PageTableTrait};
 
 const TIMER_DEFAULT_COUNT: u32 = 10000000;
 
@@ -10,9 +11,9 @@ pub fn next(count: u32) {
 }
 
 pub fn init() {
-  let page_table = ARCH.get_kernel_page_table();
-  page_table.map(0x4000_0000, 0x4000_0000, PageTableEntryAttr::kernel_device_default());
-  unsafe { mmio_writeb(0x4000_0040, 0b1111); }
+  let page_table = crate::arch::Arch::kernel_page_table();
+  page_table.map(0x4000_0000, 0x4000_0000, EntryAttribute::kernel_device());
+  unsafe { write_byte(0x4000_0040, 0b1111); }
   // timer irq control
   next(0);
 }

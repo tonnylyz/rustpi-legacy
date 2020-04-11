@@ -1,4 +1,5 @@
 use alloc::vec::Vec;
+
 use lib::process::Process;
 
 pub struct RoundRobinScheduler {
@@ -18,7 +19,7 @@ impl Scheduler for RoundRobinScheduler {
       self.counter += 1;
       let candidate = self.counter % candidates.len();
       if candidates[candidate].is_runnable() {
-        println!("scheduler: switch to [{}]", candidates[candidate].pid());
+        println!("\nscheduler: switch to [{}]", candidates[candidate].pid());
         candidates[candidate].run();
         return;
       }

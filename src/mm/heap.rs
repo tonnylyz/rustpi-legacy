@@ -1,7 +1,10 @@
+use core::ops::Range;
+
 // rCore buddy system allocator
 use buddy_system_allocator::LockedHeap;
-use core::ops::Range;
+
 use arch::pa2kva;
+
 #[global_allocator]
 static HEAP_ALLOCATOR: LockedHeap = LockedHeap::empty();
 
@@ -13,5 +16,5 @@ pub fn init(range: Range<usize>) {
 
 #[alloc_error_handler]
 fn alloc_error_handler(_: core::alloc::Layout) -> ! {
-  panic!("Kernel heap exhausted");
+  panic!("alloc_error_handler: heap panic");
 }

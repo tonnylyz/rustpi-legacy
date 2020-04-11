@@ -1,5 +1,7 @@
 use core::fmt;
 
+use arch::*;
+
 pub struct Writer;
 
 static mut WRITER: Writer = Writer;
@@ -23,11 +25,15 @@ pub fn print_arg(args: fmt::Arguments) {
 #[panic_handler]
 fn panic_handler(info: &core::panic::PanicInfo) -> ! {
   if let Some(m) = info.message() {
-    println!("\nKernel panic: {} \n {}", m, info.location().unwrap());
+    if let Some(l) = info.location() {
+      println!("\nkernel panic: {} \n {}", m, l);
+    } else {
+      println!("\nkernel panic: {}", m);
+    }
   } else {
-    println!("\nKernel panic!");
+    println!("\nkernel panic!");
   }
   loop {
-    cortex_a::asm::wfe();
+    Arch::wait_for_event();
   }
 }

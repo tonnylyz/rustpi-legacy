@@ -32,6 +32,7 @@ More OS design documents are coming!
 * Inter-process communication(IPC) system calls
 
 **Todo:**
+* Code comments
 * Code refactoring
 * and so on...
 

@@ -1,18 +1,19 @@
-use config::*;
-use lib::process::{Process, ProcessStatus, Pid};
 use alloc::vec::Vec;
+
 use spin::Mutex;
 
+use config::*;
+use lib::process::{Pid, Process, Status};
+
 struct ProcessPool {
-  free: Vec<Process>, // Free
+  free: Vec<Process>,
   alloced: Vec<Process>, // Runnable and NotRunnable
 }
 
-pub enum ProcessPoolError {
-  PpeExhausted,
-  PpeFree,
+pub enum Error {
+  OutOfProcessError,
+  ProcessNotFoundError,
 }
-use self::ProcessPoolError::*;
 
 impl ProcessPool {
   fn init(&mut self) {
@@ -27,13 +28,13 @@ impl ProcessPool {
     }
   }
 
-  fn alloc(&mut self, parent: Option<Process>, arg: usize) -> Result<Process, ProcessPoolError> {
-    use arch::{ContextFrame, ContextFrameImpl};
+  fn alloc(&mut self, parent: Option<Process>, arg: usize) -> Result<Process, Error> {
+    use arch::{ContextFrame, ContextFrameTrait};
     unsafe {
       if let Some(p) = self.free.pop() {
         p.setup_vm();
         (*p.pcb()).parent = parent;
-        (*p.pcb()).status = ProcessStatus::PsRunnable;
+        (*p.pcb()).status = Status::PsRunnable;
         let mut ctx = ContextFrame::default();
         ctx.set_argument(arg);
         ctx.set_stack_pointer(CONFIG_USER_STACK_TOP);
@@ -41,25 +42,30 @@ impl ProcessPool {
         self.alloced.push(p);
         Ok(p)
       } else {
-        Err(PpeExhausted)
+        Err(Error::OutOfProcessError)
       }
     }
   }
 
-  fn free(&mut self, p: Process) -> Result<(), ProcessPoolError> {
+  fn free(&mut self, p: Process) -> Result<(), Error> {
     if let Some(p) = self.alloced.remove_item(&p) {
       unsafe {
         (*p.pcb()).parent = None;
-        (*p.pcb()).directory = None;
+        (*p.pcb()).page_table = None;
         (*p.pcb()).context = None;
-        (*p.pcb()).status = ProcessStatus::PsFree;
+        (*p.pcb()).status = Status::PsFree;
         (*p.pcb()).exception_handler = 0;
         (*p.pcb()).exception_stack_top = 0;
+        (*p.ipc()).from = 0;
+        (*p.ipc()).receiving = false;
+        (*p.ipc()).value = 0;
+        (*p.ipc()).address = 0;
+        (*p.ipc()).attribute = 0;
         self.free.push(p);
       }
       return Ok(());
     } else {
-      Err(PpeFree)
+      Err(Error::ProcessNotFoundError)
     }
   }
 
@@ -88,7 +94,7 @@ pub fn init() {
   drop(pool);
 }
 
-pub fn alloc(parent: Option<Process>, arg: usize) -> Result<Process, ProcessPoolError> {
+pub fn alloc(parent: Option<Process>, arg: usize) -> Result<Process, Error> {
   let mut pool = PROCESS_POOL.lock();
   let r = pool.alloc(parent, arg);
   drop(pool);
@@ -98,8 +104,8 @@ pub fn alloc(parent: Option<Process>, arg: usize) -> Result<Process, ProcessPool
 pub fn free(p: Process) {
   let mut pool = PROCESS_POOL.lock();
   match pool.free(p) {
-    Ok(_) => {},
-    Err(_) => { panic!("process_pool: free failed") },
+    Ok(_) => {}
+    Err(_) => { println!("process_pool: free: process not found") }
   }
   drop(pool);
 }

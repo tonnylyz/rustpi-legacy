@@ -1,6 +1,7 @@
-use super::vm_descriptor::*;
-use super::config::*;
 use crate::board::*;
+
+use super::config::*;
+use super::vm_descriptor::*;
 
 const PHYSICAL_ADDRESS_LIMIT_GB: usize = BOARD_PHYSICAL_ADDRESS_LIMIT >> 30;
 const ENTRY_PER_PAGE: usize = PAGE_SIZE / 8;
@@ -96,9 +97,9 @@ pub unsafe extern "C" fn init() {
       TABLES.lvl2[i][j] = TableDescriptor::new(output_addr);
       for k in 0..ENTRY_PER_PAGE {
         let output_addr = (i << PAGE_TABLE_L1_SHIFT) | (j << PAGE_TABLE_L2_SHIFT) | (k << PAGE_TABLE_L3_SHIFT);
-        if BOARD.normal_memory_range().contains(&output_addr) {
+        if crate::board::Board::normal_memory_range().contains(&output_addr) {
           TABLES.lvl3[i][j][k] = PageDescriptor::new(output_addr, MemoryType::Normal);
-        } else if BOARD.device_memory_range().contains(&output_addr) {
+        } else if crate::board::Board::device_memory_range().contains(&output_addr) {
           TABLES.lvl3[i][j][k] = PageDescriptor::new(output_addr, MemoryType::Device);
         }
       }

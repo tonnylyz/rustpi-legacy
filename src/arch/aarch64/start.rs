@@ -1,5 +1,6 @@
+use board::BoardTrait;
+
 use super::config::*;
-use board::{BOARD, Board};
 
 #[no_mangle]
 #[link_section = ".text.start"]
@@ -18,7 +19,7 @@ unsafe extern "C" fn _start() -> ! {
         + SPSR_EL2::M::EL1h,
     );
     ELR_EL2.set(el1_start as *const () as u64);
-    SP_EL1.set(BOARD.kernel_stack_top() as u64);
+    SP_EL1.set(crate::board::Board::kernel_stack_top() as u64);
     asm::eret()
   } else {
     loop {
@@ -32,6 +33,6 @@ unsafe extern "C" fn _start() -> ! {
 unsafe fn el1_start() -> ! {
   use cortex_a::regs::*;
   super::mmu::init();
-  SP.set(pa2kva(BOARD.kernel_stack_top()) as u64);
+  SP.set(pa2kva(crate::board::Board::kernel_stack_top()) as u64);
   crate::main();
 }

@@ -1,7 +1,7 @@
 use arch::*;
 use config::*;
 use lib::page_table::{Entry, PageTableEntryAttrTrait, PageTableTrait};
-use lib::process::{CURRENT, Pid, Process};
+use lib::process::{Pid, Process};
 use mm::PageFrame;
 
 use self::Error::*;
@@ -63,19 +63,15 @@ pub struct SystemCall;
 fn lookup_pid(pid: u16, check_parent: bool) -> Result<Process, Error> {
   use lib::process_pool::*;
   if pid == 0 {
-    unsafe {
-      Ok(CURRENT.ok_or_else(|| InternalError)?)
-    }
+    Ok(crate::arch::Arch::running_process().ok_or_else(|| InternalError)?)
   } else {
     if let Some(p) = lookup(Process::new(pid)) {
       if check_parent {
         if let Some(parent) = p.parent() {
-          unsafe {
-            if CURRENT.ok_or_else(|| InternalError)?.pid() == parent.pid() {
-              Ok(p)
-            } else {
-              Err(ProcessParentMismatchedError)
-            }
+          if crate::arch::Arch::running_process().ok_or_else(|| InternalError)?.pid() == parent.pid() {
+            Ok(p)
+          } else {
+            Err(ProcessParentMismatchedError)
           }
         } else {
           Err(ProcessParentNotFoundError)
@@ -95,9 +91,7 @@ impl SystemCallTrait for SystemCall {
   }
 
   fn getpid() -> u16 {
-    unsafe {
-      CURRENT.unwrap().pid()
-    }
+    crate::arch::Arch::running_process().unwrap().pid()
   }
 
   fn process_yield() {
@@ -178,9 +172,9 @@ impl SystemCallTrait for SystemCall {
   fn process_alloc() -> Result<Pid, Error> {
     use lib::*;
     unsafe {
-      let p = CURRENT.unwrap();
+      let p = crate::arch::Arch::running_process().unwrap();
       let child = process_pool::alloc(Some(p), 0)?;
-      let mut ctx = CONTEXT_FRAME.clone();
+      let mut ctx = (*crate::arch::Arch::context()).clone();
       ctx.set_argument(0);
       (*child.pcb()).context = Some(ctx);
       (*child.pcb()).status = crate::lib::process::Status::PsNotRunnable;
@@ -201,7 +195,7 @@ impl SystemCallTrait for SystemCall {
 
   fn ipc_receive(dst_va: usize) {
     unsafe {
-      let p = CURRENT.unwrap();
+      let p = crate::arch::Arch::running_process().unwrap();
       (*p.ipc()).attribute = dst_va;
       (*p.ipc()).receiving = true;
       (*p.pcb()).status = crate::lib::process::Status::PsNotRunnable;
@@ -223,7 +217,7 @@ impl SystemCallTrait for SystemCall {
         if dst_va >= CONFIG_USER_LIMIT {
           return Err(MemoryLimitError);
         }
-        let src_page_table = (*CURRENT.unwrap().pcb()).page_table.ok_or_else(|| InternalError)?;
+        let src_page_table = (*crate::arch::Arch::running_process().unwrap().pcb()).page_table.ok_or_else(|| InternalError)?;
         if let Some(src_pte) = src_page_table.lookup_page(src_va) {
           let user_attr = Entry::from(ArchPageTableEntry::new(attr)).attribute();
           let attr = user_attr.filter();
@@ -235,7 +229,7 @@ impl SystemCallTrait for SystemCall {
         }
       }
       (*p.ipc()).receiving = false;
-      (*p.ipc()).from = CURRENT.unwrap().pid();
+      (*p.ipc()).from = crate::arch::Arch::running_process().unwrap().pid();
       (*p.ipc()).value = value;
       (*p.pcb()).status = crate::lib::process::Status::PsRunnable;
       Ok(())

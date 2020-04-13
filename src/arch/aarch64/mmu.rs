@@ -58,7 +58,7 @@ struct PageTables {
 
 #[no_mangle]
 #[link_section = ".data.kvm"]
-static mut TABLES: PageTables = PageTables {
+static mut KERNEL_PAGE_TABLES: PageTables = PageTables {
   lvl3: [[[PageDescriptor(0); ENTRY_PER_PAGE]; ENTRY_PER_PAGE]; PHYSICAL_ADDRESS_LIMIT_GB],
   lvl2: [[TableDescriptor(0); ENTRY_PER_PAGE]; PHYSICAL_ADDRESS_LIMIT_GB],
   lvl1: [TableDescriptor(0); ENTRY_PER_PAGE],
@@ -86,57 +86,61 @@ impl<T> BaseAddr for T {
 // is necessary
 #[no_mangle]
 #[link_section = ".text.kvm"]
-pub unsafe extern "C" fn init() {
+pub unsafe extern "C" fn init(create_table: bool) {
   use cortex_a::regs::*;
   use cortex_a::*;
-  for i in 0..PHYSICAL_ADDRESS_LIMIT_GB {
-    let output_addr = TABLES.lvl2[i].base_addr_usize();
-    TABLES.lvl1[i] = TableDescriptor::new(output_addr);
-    for j in 0..ENTRY_PER_PAGE {
-      let output_addr = TABLES.lvl3[i][j].base_addr_usize();
-      TABLES.lvl2[i][j] = TableDescriptor::new(output_addr);
-      for k in 0..ENTRY_PER_PAGE {
-        let output_addr = (i << PAGE_TABLE_L1_SHIFT) | (j << PAGE_TABLE_L2_SHIFT) | (k << PAGE_TABLE_L3_SHIFT);
-        if crate::board::Board::normal_memory_range().contains(&output_addr) {
-          TABLES.lvl3[i][j][k] = PageDescriptor::new(output_addr, MemoryType::Normal);
-        } else if crate::board::Board::device_memory_range().contains(&output_addr) {
-          TABLES.lvl3[i][j][k] = PageDescriptor::new(output_addr, MemoryType::Device);
+  if create_table {
+    for i in 0..PHYSICAL_ADDRESS_LIMIT_GB {
+      let output_addr = KERNEL_PAGE_TABLES.lvl2[i].base_addr_usize();
+      KERNEL_PAGE_TABLES.lvl1[i] = TableDescriptor::new(output_addr);
+      for j in 0..ENTRY_PER_PAGE {
+        let output_addr = KERNEL_PAGE_TABLES.lvl3[i][j].base_addr_usize();
+        KERNEL_PAGE_TABLES.lvl2[i][j] = TableDescriptor::new(output_addr);
+        for k in 0..ENTRY_PER_PAGE {
+          let output_addr = (i << PAGE_TABLE_L1_SHIFT) | (j << PAGE_TABLE_L2_SHIFT) | (k << PAGE_TABLE_L3_SHIFT);
+          if crate::board::Board::normal_memory_range().contains(&output_addr) {
+            KERNEL_PAGE_TABLES.lvl3[i][j][k] = PageDescriptor::new(output_addr, MemoryType::Normal);
+          } else if crate::board::Board::device_memory_range().contains(&output_addr) {
+            KERNEL_PAGE_TABLES.lvl3[i][j][k] = PageDescriptor::new(output_addr, MemoryType::Device);
+          }
         }
       }
     }
+    for i in PHYSICAL_ADDRESS_LIMIT_GB..ENTRY_PER_PAGE {
+      // avoid optimization using memset (over high address)
+      // do NOT write TableDescriptor(0)
+      KERNEL_PAGE_TABLES.lvl1[i] = TableDescriptor((i << 4) as u64);
+    }
   }
-  for i in PHYSICAL_ADDRESS_LIMIT_GB..ENTRY_PER_PAGE {
-    // avoid optimization using memset (over high address)
-    // do NOT write TableDescriptor(0)
-    TABLES.lvl1[i] = TableDescriptor((i << 4) as u64);
-  }
+
   MAIR_EL1.write(
     MAIR_EL1::Attr0_HIGH::Memory_OuterWriteBack_NonTransient_ReadAlloc_WriteAlloc
       + MAIR_EL1::Attr0_LOW_MEMORY::InnerWriteBack_NonTransient_ReadAlloc_WriteAlloc
       + MAIR_EL1::Attr1_HIGH::Device
       + MAIR_EL1::Attr1_LOW_DEVICE::Device_nGnRE,
   );
-  TTBR0_EL1.set(TABLES.lvl1.base_addr_u64());
-  TTBR1_EL1.set(TABLES.lvl1.base_addr_u64());
+  TTBR0_EL1.set(KERNEL_PAGE_TABLES.lvl1.base_addr_u64());
+  TTBR1_EL1.set(KERNEL_PAGE_TABLES.lvl1.base_addr_u64());
 
-  // Note: workaround for kernel low address code constrain
-  //let tcr = (TCR_EL1::TBI0::Ignored
-  //  + TCR_EL1::TBI1::Ignored
-  //  + TCR_EL1::IPS.val(0b001) // 64GB
-  //  + TCR_EL1::TG0::KiB_4
-  //  + TCR_EL1::TG1::KiB_4
-  //  + TCR_EL1::SH0::Inner
-  //  + TCR_EL1::SH1::Inner
-  //  + TCR_EL1::ORGN0::WriteBack_ReadAlloc_WriteAlloc_Cacheable
-  //  + TCR_EL1::ORGN1::WriteBack_ReadAlloc_WriteAlloc_Cacheable
-  //  + TCR_EL1::IRGN0::WriteBack_ReadAlloc_WriteAlloc_Cacheable
-  //  + TCR_EL1::IRGN1::WriteBack_ReadAlloc_WriteAlloc_Cacheable
-  //  + TCR_EL1::EPD0::EnableTTBR0Walks
-  //  + TCR_EL1::EPD1::EnableTTBR1Walks
-  //  + TCR_EL1::T0SZ.val(64 - 39)
-  //  + TCR_EL1::T1SZ.val(64 - 39)).value;
-  const AARCH64_TCR_EL1_VALUE: u64 = 0x0000006135193519;
-  TCR_EL1.set(AARCH64_TCR_EL1_VALUE);
+  TCR_EL1.write(TCR_EL1::TBI0::Ignored
+    + TCR_EL1::TBI1::Ignored
+    + TCR_EL1::IPS.val(0b001) // 64GB
+    + TCR_EL1::TG0::KiB_4
+    + TCR_EL1::TG1::KiB_4
+    + TCR_EL1::SH0::Inner
+    + TCR_EL1::SH1::Inner
+    + TCR_EL1::ORGN0::WriteBack_ReadAlloc_WriteAlloc_Cacheable
+    + TCR_EL1::ORGN1::WriteBack_ReadAlloc_WriteAlloc_Cacheable
+    + TCR_EL1::IRGN0::WriteBack_ReadAlloc_WriteAlloc_Cacheable
+    + TCR_EL1::IRGN1::WriteBack_ReadAlloc_WriteAlloc_Cacheable
+    + TCR_EL1::EPD0::EnableTTBR0Walks
+    + TCR_EL1::EPD1::EnableTTBR1Walks
+    + TCR_EL1::T0SZ.val(64 - 39)
+    + TCR_EL1::T1SZ.val(64 - 39));
+  //extern "C" {
+  //  fn smpen();
+  //}
+  //smpen();
   barrier::isb(barrier::SY);
   SCTLR_EL1.modify(SCTLR_EL1::M::Enable + SCTLR_EL1::C::NonCacheable + SCTLR_EL1::I::NonCacheable);
   barrier::isb(barrier::SY);

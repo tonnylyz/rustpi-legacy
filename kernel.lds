@@ -17,10 +17,12 @@ SECTIONS
         *(.data*)
     }
     . = ALIGN(4096);
+    BSS_START = .;
     .bss : {
         *(.bss.ipc)
         *(.bss*)
     }
+    BSS_END = .;
     /DISCARD/ : {
         *(.comment)
     }

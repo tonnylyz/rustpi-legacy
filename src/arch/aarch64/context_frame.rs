@@ -24,23 +24,12 @@ impl core::fmt::Display for Aarch64ContextFrame {
   }
 }
 
-impl Aarch64ContextFrame {
-  pub const fn zero() -> Self {
-    Aarch64ContextFrame {
-      gpr: [0; 31],
-      spsr: 0,
-      elr: 0,
-      sp: 0,
-    }
-  }
-}
-
 impl Default for Aarch64ContextFrame {
   fn default() -> Self {
     use cortex_a::regs::*;
     Aarch64ContextFrame {
       gpr: [0; 31],
-      spsr: (SPSR_EL1::M::EL0t + SPSR_EL1::I::Unmasked).value as u64,
+      spsr: (SPSR_EL1::M::EL0t + SPSR_EL1::I::Unmasked + SPSR_EL1::F::Masked).value as u64,
       elr: 0xdeadbeef,
       sp: 0xdeadbeef,
     }

@@ -1,4 +1,5 @@
-use arch::{AddressSpaceId, PageTable};
+use arch::{AddressSpaceId, PageTable, ContextFrame};
+use lib::process::Process;
 
 pub trait ArchTrait {
   fn exception_init();
@@ -18,6 +19,12 @@ pub trait ArchTrait {
   fn wait_for_event();
   fn nop();
   fn fault_address() -> usize;
+  fn core_id() -> usize;
+  fn context() -> *mut ContextFrame;
+  fn has_context() -> bool;
+  fn running_process() -> Option<Process>;
+  fn set_running_process(p: Option<Process>);
+  fn schedule();
 }
 
 pub trait ContextFrameTrait: Default {

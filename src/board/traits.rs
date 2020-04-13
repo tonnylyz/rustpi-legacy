@@ -6,4 +6,5 @@ pub trait BoardTrait {
   fn device_memory_range() -> Range<usize>;
   fn kernel_start() -> usize;
   fn kernel_stack_top() -> usize;
+  fn kernel_stack_top_core(core_id: usize) -> usize;
 }

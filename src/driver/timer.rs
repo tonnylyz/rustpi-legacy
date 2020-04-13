@@ -10,10 +10,11 @@ pub fn next(count: u32) {
   CNTP_CTL_EL0.write(CNTP_CTL_EL0::ENABLE.val(1) + CNTP_CTL_EL0::IMASK.val(0));
 }
 
-pub fn init() {
-  let page_table = crate::arch::Arch::kernel_page_table();
-  page_table.map(0x4000_0000, 0x4000_0000, EntryAttribute::kernel_device());
-  unsafe { write_byte(0x4000_0040, 0b1111); }
-  // timer irq control
+pub fn init(core_id: usize) {
+  if core_id == 0 {
+    let page_table = crate::arch::Arch::kernel_page_table();
+    page_table.map(0x4000_0000, 0x4000_0000, EntryAttribute::kernel_device());
+  }
+  unsafe { write_byte(0x4000_0040 + core_id * 4, 0b1111); }
   next(0);
 }

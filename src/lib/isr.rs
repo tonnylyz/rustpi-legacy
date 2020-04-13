@@ -3,7 +3,7 @@ use core::intrinsics::size_of;
 use arch::*;
 use config::*;
 use lib::page_table::PageTableTrait;
-use lib::process::{CURRENT, Pid};
+use lib::process::Pid;
 use mm::PageFrame;
 
 pub trait InterruptServiceRoutine {
@@ -65,9 +65,12 @@ impl InterruptServiceRoutine for Isr {
   fn system_call() {
     use lib::syscall::*;
     unsafe {
-      let arg = |i: usize| { CONTEXT_FRAME.syscall_argument(i) };
-      let scr = match CONTEXT_FRAME.syscall_number() {
+      let arg = |i: usize| { (*crate::arch::Arch::context()).syscall_argument(i) };
+      let scr = match (*crate::arch::Arch::context()).syscall_number() {
         1 => {
+          //print!("core_{}: putc({})", crate::arch::Arch::core_id(), arg(0) as u8 as char);
+          //println!();
+          //().into()
           SystemCall::putc(arg(0) as u8 as char).into()
         }
         2 => {
@@ -114,22 +117,32 @@ impl InterruptServiceRoutine for Isr {
       match scr {
         SystemCallResult::Void => {}
         SystemCallResult::Pid(pid) => {
-          //println!("{}:{:?}", CONTEXT_FRAME.get_syscall_number(), scr);
-          CONTEXT_FRAME.set_syscall_return_value(pid as usize);
+          //println!("[{}]:{}:{:?}", CURRENT.unwrap().pid(), (*crate::arch::Arch::context()).syscall_number(), scr);
+          (*crate::arch::Arch::context()).set_syscall_return_value(pid as usize);
         }
         SystemCallResult::R(o) => {
-          //println!("{}:{:?}", CONTEXT_FRAME.get_syscall_number(), scr);
+          //println!("[{}]:{}:{:?}", CURRENT.unwrap().pid(), (*crate::arch::Arch::context()).syscall_number(), scr);
           match o {
-            None => { CONTEXT_FRAME.set_syscall_return_value(0); }
-            Some(i) => { CONTEXT_FRAME.set_syscall_return_value(i as usize); }
+            None => { (*crate::arch::Arch::context()).set_syscall_return_value(0); }
+            Some(i) => { (*crate::arch::Arch::context()).set_syscall_return_value(i as usize); }
           }
         }
       }
     }
   }
   fn interrupt_request() {
+    let core_id = crate::arch::Arch::core_id();
+    //println!("core_{} irq", core_id);
+    //println!("{:016x}", crate::arch::Arch::context() as usize);
+    unsafe {
+      let irq_source = crate::driver::mmio::read_word(pa2kva(0x4000_0060 + 4 * core_id));
+      if (irq_source >> 1) & 0b1 == 0 {
+        panic!("core_{} irq source not timer", core_id);
+      }
+    }
     crate::driver::timer::next(0);
     crate::lib::scheduler::schedule();
+    //println!("core_{} irq return", core_id);
   }
   fn page_fault() {
     unsafe {
@@ -137,13 +150,13 @@ impl InterruptServiceRoutine for Isr {
       let va = round_down(addr, PAGE_SIZE);
       if va >= CONFIG_USER_LIMIT {
         println!("isr: page_fault: va >= CONFIG_USER_LIMIT, process killed");
-        CURRENT.unwrap().destroy();
+        crate::arch::Arch::running_process().unwrap().destroy();
         return;
       }
-      let p = CURRENT.unwrap();
+      let p = crate::arch::Arch::running_process().unwrap();
       if (*p.pcb()).exception_handler == 0 {
         println!("isr: page_fault: process has no handler, process killed");
-        CURRENT.unwrap().destroy();
+        crate::arch::Arch::running_process().unwrap().destroy();
         return;
       }
       let page_table = (*p.pcb()).page_table.unwrap();
@@ -153,25 +166,25 @@ impl InterruptServiceRoutine for Isr {
         Some(stack_pte) => {
           if va == stack_btm {
             println!("isr: page_fault: fault on exception stack, process killed");
-            CURRENT.unwrap().destroy();
+            crate::arch::Arch::running_process().unwrap().destroy();
             return;
           }
           let stack_frame = PageFrame::new(stack_pte.pa());
           core::intrinsics::volatile_copy_memory(
             (stack_frame.kva() + PAGE_SIZE - size_of::<ContextFrame>()) as *mut ContextFrame,
-            (&CONTEXT_FRAME) as *const ContextFrame,
+            crate::arch::Arch::context() as *const ContextFrame,
             1,
           );
-          let mut ctx = CONTEXT_FRAME.clone();
+          let mut ctx = (*crate::arch::Arch::context()).clone();
           ctx.set_exception_pc((*p.pcb()).exception_handler);
           ctx.set_stack_pointer(stack_top - size_of::<ContextFrame>());
           ctx.set_argument(va);
-          CONTEXT_FRAME = ctx;
+          (*crate::arch::Arch::context()) = ctx;
           return;
         }
         None => {
           println!("isr: page_fault: exception stack not valid, process killed");
-          CURRENT.unwrap().destroy();
+          crate::arch::Arch::running_process().unwrap().destroy();
           return;
         }
       }
@@ -180,12 +193,12 @@ impl InterruptServiceRoutine for Isr {
   fn default() {
     unsafe {
       println!("fault_address: {:016x}", crate::Arch::fault_address());
-      println!("{:?}", (*CURRENT.unwrap().pcb()).page_table.unwrap().lookup_page(crate::Arch::fault_address()));
-      println!("pc: {:016x}", CONTEXT_FRAME.exception_pc());
-      println!("{:?}", (*CURRENT.unwrap().pcb()).page_table.unwrap().lookup_page(CONTEXT_FRAME.exception_pc()));
-      println!("{}", CONTEXT_FRAME);
+      println!("{:?}", (*crate::arch::Arch::running_process().unwrap().pcb()).page_table.unwrap().lookup_page(crate::Arch::fault_address()));
+      println!("pc: {:016x}", (*crate::arch::Arch::context()).exception_pc());
+      println!("{:?}", (*crate::arch::Arch::running_process().unwrap().pcb()).page_table.unwrap().lookup_page((*crate::arch::Arch::context()).exception_pc()));
+      println!("{}", (*crate::arch::Arch::context()));
       println!("isr: default: process killed");
-      CURRENT.unwrap().destroy();
+      crate::arch::Arch::running_process().unwrap().destroy();
     }
   }
 }

@@ -1,5 +1,6 @@
 use core::ops::Range;
 
+pub const BOARD_CORE_NUMBER: usize = 4;
 pub const BOARD_PHYSICAL_ADDRESS_LIMIT: usize = 0x4000_0000;
 
 pub struct Rpi3;
@@ -28,6 +29,11 @@ impl super::BoardTrait for Rpi3 {
   #[inline(always)]
   fn kernel_stack_top() -> usize {
     0x0008_0000
+  }
+
+  #[inline(always)]
+  fn kernel_stack_top_core(core_id: usize) -> usize {
+    Self::kernel_stack_top() - core_id * 0x0002_0000
   }
 }
 

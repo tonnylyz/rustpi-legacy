@@ -1,36 +1,28 @@
-#.equ KERNEL_STACK_TOP, 0xFFFFFF8000080000
-
 .macro VECTOR handler
-    str x30, [sp, #-16]!
-    ldr x30, =CONTEXT_FRAME
-    stp x0, x1,  [x30], #16
-    stp x2, x3,  [x30], #16
-    stp x4, x5,  [x30], #16
-    stp x6, x7,  [x30], #16
-    stp x8, x9,  [x30], #16
-    stp x10,x11, [x30], #16
-    stp x12,x13, [x30], #16
-    stp x14,x15, [x30], #16
-    stp x16,x17, [x30], #16
-    stp x18,x19, [x30], #16
-    stp x20,x21, [x30], #16
-    stp x22,x23, [x30], #16
-    stp x24,x25, [x30], #16
-    stp x26,x27, [x30], #16
-    stp x28,x29, [x30], #16
-
-    ldr x0, [sp], #16 // x30
+    sub	sp, sp, #0x110 // size of ContextFrame
+    stp x0, x1,  [sp, #(0 * 16)]
+    stp x2, x3,  [sp, #(1 * 16)]
+    stp x4, x5,  [sp, #(2 * 16)]
+    stp x6, x7,  [sp, #(3 * 16)]
+    stp x8, x9,  [sp, #(4 * 16)]
+    stp x10,x11, [sp, #(5 * 16)]
+    stp x12,x13, [sp, #(6 * 16)]
+    stp x14,x15, [sp, #(7 * 16)]
+    stp x16,x17, [sp, #(8 * 16)]
+    stp x18,x19, [sp, #(9 * 16)]
+    stp x20,x21, [sp, #(10 * 16)]
+    stp x22,x23, [sp, #(11 * 16)]
+    stp x24,x25, [sp, #(12 * 16)]
+    stp x26,x27, [sp, #(13 * 16)]
+    stp x28,x29, [sp, #(14 * 16)]
     mrs x1, spsr_el1
-    stp x0, x1, [x30], #16
-
+    stp x30, x1, [sp, #(15 * 16)]
     mrs x0, elr_el1
     mrs x1, sp_el0
-    stp x0, x1, [x30], #16
-
-    #ldr x0, =KERNEL_STACK_TOP
-    #mov sp, x0
+    stp x0, x1,  [sp, #(16 * 16)]
+    mov x0, sp
     bl  \handler
-    b   pop_time_stack
+    b   pop_context
 .endm
 
 .macro VECTOR_DISABLED
@@ -83,29 +75,37 @@ vectors:
     VECTOR_DISABLED
 .org 0x800
 
-.global pop_time_stack
-pop_time_stack:
-    ldr x30, =CONTEXT_FRAME
-    ldr x0, [x30, #(31 * 8)] // spsr
-    ldr x1, [x30, #(32 * 8)] // elr
-    ldr x2, [x30, #(33 * 8)] // sp
+.global pop_context
+pop_context:
+    ldr x0, [sp, #(31 * 8)] // spsr
+    ldr x1, [sp, #(32 * 8)] // elr
+    ldr x2, [sp, #(33 * 8)] // sp
     msr spsr_el1, x0
     msr elr_el1, x1
     msr sp_el0, x2
-    ldp x0, x1,  [x30], #16
-    ldp x2, x3,  [x30], #16
-    ldp x4, x5,  [x30], #16
-    ldp x6, x7,  [x30], #16
-    ldp x8, x9,  [x30], #16
-    ldp x10,x11, [x30], #16
-    ldp x12,x13, [x30], #16
-    ldp x14,x15, [x30], #16
-    ldp x16,x17, [x30], #16
-    ldp x18,x19, [x30], #16
-    ldp x20,x21, [x30], #16
-    ldp x22,x23, [x30], #16
-    ldp x24,x25, [x30], #16
-    ldp x26,x27, [x30], #16
-    ldp x28,x29, [x30], #16
-    ldr x30, [x30]
+    ldp x0, x1,  [sp, #(0 * 16)]
+    ldp x2, x3,  [sp, #(1 * 16)]
+    ldp x4, x5,  [sp, #(2 * 16)]
+    ldp x6, x7,  [sp, #(3 * 16)]
+    ldp x8, x9,  [sp, #(4 * 16)]
+    ldp x10,x11, [sp, #(5 * 16)]
+    ldp x12,x13, [sp, #(6 * 16)]
+    ldp x14,x15, [sp, #(7 * 16)]
+    ldp x16,x17, [sp, #(8 * 16)]
+    ldp x18,x19, [sp, #(9 * 16)]
+    ldp x20,x21, [sp, #(10 * 16)]
+    ldp x22,x23, [sp, #(11 * 16)]
+    ldp x24,x25, [sp, #(12 * 16)]
+    ldp x26,x27, [sp, #(13 * 16)]
+    ldp x28,x29, [sp, #(14 * 16)]
+    ldr x30, [sp, #(15 * 16)]
+    add	sp, sp, #0x110 // size of ContextFrame
     eret
+
+.section .text.kvm
+.global smpen
+smpen:
+    mrs x0, S3_1_c15_c2_1
+    orr x0, x0, #0x40
+    msr S3_1_c15_c2_1, x0
+    ret

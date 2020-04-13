@@ -35,16 +35,18 @@ pub static mut IPC_LIST: [Ipc; CONFIG_PROCESS_NUMBER] = [Ipc {
   attribute: 0,
 }; CONFIG_PROCESS_NUMBER];
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Debug)]
 pub struct ControlBlock {
   pub id: Pid,
   pub parent: Option<Process>,
   pub page_table: Option<PageTable>,
   pub context: Option<ContextFrame>,
   pub status: Status,
-
   pub exception_handler: usize,
   pub exception_stack_top: usize,
+
+  lock: spin::Mutex<()>,
+  running_at: Option<usize>, // core_id
 }
 
 #[no_mangle]
@@ -56,6 +58,8 @@ pub static mut PCB_LIST: [ControlBlock; CONFIG_PROCESS_NUMBER] = [ControlBlock {
   status: Status::PsFree,
   exception_handler: 0,
   exception_stack_top: 0,
+  lock: spin::Mutex::new(()),
+  running_at: None
 }; CONFIG_PROCESS_NUMBER];
 
 
@@ -74,14 +78,14 @@ impl Display for ControlBlock {
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct Process {
-  pid: Pid
+  pid: Pid,
 }
 
 impl Process {
   pub fn new(pid: Pid) -> Self {
     assert_ne!(pid, 0);
     Process {
-      pid,
+      pid
     }
   }
 
@@ -149,6 +153,7 @@ impl Process {
   }
 
   pub fn free(&self) {
+    self.unlock();
     unsafe {
       (*self.pcb()).page_table.unwrap().destroy();
       let frame = (*self.pcb()).page_table.unwrap().directory();
@@ -159,12 +164,10 @@ impl Process {
 
   pub fn destroy(&self) {
     self.free();
-    unsafe {
-      if let Some(pid) = CURRENT {
-        if pid.pid == self.pid {
-          CURRENT = None;
-          crate::lib::scheduler::schedule();
-        }
+    if let Some(pid) = crate::arch::Arch::running_process() {
+      if pid.pid == self.pid {
+        crate::arch::Arch::set_running_process(None);
+        crate::lib::scheduler::schedule();
       }
     }
   }
@@ -173,11 +176,21 @@ impl Process {
     unsafe {
       assert!((*self.pcb()).page_table.is_some());
       assert!((*self.pcb()).context.is_some());
-      if let Some(prev) = CURRENT {
-        (*(prev.pcb())).context = Some(CONTEXT_FRAME);
+      if let Some(prev) = crate::arch::Arch::running_process() {
+        // Note: normal switch
+        prev.lock();
+        prev.set_running_at(None);
+        (*(prev.pcb())).context = Some(*crate::arch::Arch::context());
+        prev.unlock();
+        (*crate::arch::Arch::context()) = (*self.pcb()).context.unwrap();
+      } else if crate::arch::Arch::has_context() {
+        // Note: previous process has been destroyed
+        (*crate::arch::Arch::context()) = (*self.pcb()).context.unwrap();
+      } else {
+        // Note: this is first run
+        // Arch::start_first_process prepare the context to stack
       }
-      CURRENT = Some(self.clone());
-      CONTEXT_FRAME = (*self.pcb()).context.unwrap();
+      crate::arch::Arch::set_running_process(Some(self.clone()));
       crate::arch::Arch::set_user_page_table((*self.pcb()).page_table.unwrap(), self.pid as AddressSpaceId);
       crate::arch::Arch::invalidate_tlb();
     }
@@ -188,6 +201,28 @@ impl Process {
       (*self.pcb()).status == Status::PsRunnable
     }
   }
-}
 
-pub static mut CURRENT: Option<Process> = None;
+  pub fn lock(&self) {
+    unsafe {
+      (*self.pcb()).lock.lock();
+    }
+  }
+
+  pub fn unlock(&self) {
+    unsafe {
+      (*self.pcb()).lock.force_unlock()
+    }
+  }
+
+  pub fn running_at(&self) -> Option<usize> {
+    unsafe {
+      (*self.pcb()).running_at
+    }
+  }
+
+  pub fn set_running_at(&self, core: Option<usize>) {
+    unsafe {
+      (*self.pcb()).running_at = core;
+    }
+  }
+}

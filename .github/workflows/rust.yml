@@ -1,0 +1,29 @@
+name: Rust
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Install Rust nightly toolchain
+      uses: actions-rs/toolchain@v1.0.6
+      with: 
+        toolchain: nightly
+        components: rust-src
+        override: true
+    - name: Install cargo-xbuild
+      run: cargo install cargo-xbuild
+    - name: Download linaro gcc toolchain
+      run: wget 'https://releases.linaro.org/components/toolchain/binaries/latest-7/aarch64-elf/gcc-linaro-7.5.0-2019.12-x86_64_aarch64-elf.tar.xz'
+    - name: Unpack linaro gcc toolchain
+      run: tar -xf gcc-linaro-7.5.0-2019.12-x86_64_aarch64-elf.tar.xz
+    - name: Build
+      run: PATH=gcc-linaro-7.5.0-2019.12-x86_64_aarch64-elf/bin:$PATH cargo xbuild --target aarch64-none-elf.json --release

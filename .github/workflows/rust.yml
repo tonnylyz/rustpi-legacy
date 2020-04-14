@@ -19,11 +19,7 @@ jobs:
         toolchain: nightly
         components: rust-src
         override: true
-    - name: Install cargo-xbuild
-      run: cargo install cargo-xbuild
-    - name: Download linaro gcc toolchain
-      run: wget 'https://releases.linaro.org/components/toolchain/binaries/latest-7/aarch64-elf/gcc-linaro-7.5.0-2019.12-x86_64_aarch64-elf.tar.xz'
-    - name: Unpack linaro gcc toolchain
-      run: tar -xf gcc-linaro-7.5.0-2019.12-x86_64_aarch64-elf.tar.xz
-    - name: Build
-      run: PATH=gcc-linaro-7.5.0-2019.12-x86_64_aarch64-elf/bin:$PATH cargo xbuild --target target.aarch64.json --release
+    - name: Build for aarch64
+      run: cargo build --target target.aarch64.json -Zbuild-std=core,alloc --release
+    - name: Build for riscv64
+      run: cargo build --target target.riscv64.json -Zbuild-std=core,alloc --release

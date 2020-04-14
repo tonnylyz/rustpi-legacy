@@ -1,4 +1,4 @@
-use arch::PAGE_SIZE;
+use crate::arch::PAGE_SIZE;
 
 #[derive(Clone, Copy, Debug)]
 pub struct PageFrame {

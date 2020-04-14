@@ -1,6 +1,6 @@
-use arch::*;
-use driver::mmio::write_byte;
-use lib::page_table::{EntryAttribute, PageTableEntryAttrTrait, PageTableTrait};
+use crate::arch::*;
+use crate::driver::mmio::write_byte;
+use crate::lib::page_table::{EntryAttribute, PageTableEntryAttrTrait, PageTableTrait};
 
 const TIMER_DEFAULT_COUNT: u32 = 10000000;
 

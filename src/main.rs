@@ -10,13 +10,6 @@
 #![feature(asm)]
 
 extern crate alloc;
-extern crate buddy_system_allocator;
-extern crate cortex_a;
-extern crate register;
-extern crate spin;
-#[macro_use]
-extern crate static_assertions;
-extern crate xmas_elf;
 
 use arch::*;
 
@@ -53,9 +46,11 @@ fn clear_bss() {
 fn static_check() {
   use config::*;
   use core::intrinsics::size_of;
-  const_assert_eq!(size_of::<crate::lib::process::Ipc>(), CONFIG_PROCESS_IPC_SIZE);
-  // Note: size of ContextFrame needs to be synced with `arch/aarch64/exception.S`
-  const_assert_eq!(size_of::<ContextFrame>(), 0x110);
+  unsafe {
+    assert_eq!(size_of::<crate::lib::process::Ipc>(), CONFIG_PROCESS_IPC_SIZE);
+    // Note: size of ContextFrame needs to be synced with `arch/aarch64/exception.S`
+    assert_eq!(size_of::<ContextFrame>(), 0x110);
+  }
 }
 
 #[no_mangle]

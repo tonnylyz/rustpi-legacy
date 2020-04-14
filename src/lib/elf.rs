@@ -1,6 +1,5 @@
-use arch::*;
-use lib::page_table::{EntryAttribute, PageTableEntryAttrTrait, PageTableTrait};
-
+use crate::arch::*;
+use crate::lib::page_table::{EntryAttribute, PageTableEntryAttrTrait, PageTableTrait};
 use crate::mm::PageFrame;
 
 unsafe fn memcpy(src: &'static [u8], offset: usize, dest: PageFrame, length: usize) {

@@ -1,8 +1,8 @@
-use arch::*;
-use config::*;
-use lib::page_table::{Entry, PageTableEntryAttrTrait, PageTableTrait};
-use lib::process::{Pid, Process};
-use mm::PageFrame;
+use crate::arch::*;
+use crate::config::*;
+use crate::lib::page_table::{Entry, PageTableEntryAttrTrait, PageTableTrait};
+use crate::lib::process::{Pid, Process};
+use crate::mm::PageFrame;
 
 use self::Error::*;
 
@@ -61,7 +61,7 @@ pub trait SystemCallTrait {
 pub struct SystemCall;
 
 fn lookup_pid(pid: u16, check_parent: bool) -> Result<Process, Error> {
-  use lib::process_pool::*;
+  use crate::lib::process_pool::*;
   if pid == 0 {
     Ok(crate::arch::Arch::running_process().ok_or_else(|| InternalError)?)
   } else {
@@ -170,7 +170,7 @@ impl SystemCallTrait for SystemCall {
   }
 
   fn process_alloc() -> Result<Pid, Error> {
-    use lib::*;
+    use crate::lib::*;
     unsafe {
       let p = crate::arch::Arch::running_process().unwrap();
       let child = process_pool::alloc(Some(p), 0)?;

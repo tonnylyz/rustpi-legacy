@@ -1,10 +1,10 @@
 use core::intrinsics::size_of;
 
-use arch::*;
-use config::*;
-use lib::page_table::PageTableTrait;
-use lib::process::Pid;
-use mm::PageFrame;
+use crate::arch::*;
+use crate::config::*;
+use crate::lib::page_table::PageTableTrait;
+use crate::lib::process::Pid;
+use crate::mm::PageFrame;
 
 pub trait InterruptServiceRoutine {
   fn system_call();
@@ -63,7 +63,7 @@ impl<T> core::convert::From<Result<T, super::syscall::Error>> for SystemCallResu
 
 impl InterruptServiceRoutine for Isr {
   fn system_call() {
-    use lib::syscall::*;
+    use crate::lib::syscall::*;
     unsafe {
       let arg = |i: usize| { (*crate::arch::Arch::context()).syscall_argument(i) };
       let scr = match (*crate::arch::Arch::context()).syscall_number() {
@@ -98,7 +98,7 @@ impl InterruptServiceRoutine for Isr {
           SystemCall::process_alloc().into()
         }
         10 => {
-          use lib::process::Status::{PsRunnable, PsNotRunnable, PsFree};
+          use crate::lib::process::Status::{PsRunnable, PsNotRunnable, PsFree};
           let ps = match arg(1) {
             1 => { PsRunnable }
             2 => { PsNotRunnable }

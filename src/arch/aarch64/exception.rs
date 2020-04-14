@@ -5,8 +5,9 @@
 //! Exception handling.
 
 use cortex_a::{barrier, regs::*};
-use arch::aarch64::core::CORES;
-use arch::ArchTrait;
+
+use crate::arch::aarch64::core::CORES;
+use crate::arch::ArchTrait;
 
 global_asm!(include_str!("exception.S"));
 

@@ -1,6 +1,6 @@
-use arch::*;
-use lib::page_table::{Entry, EntryAttribute, PageTableEntryAttrTrait, PageTableTrait};
-use mm::PageFrame;
+use crate::arch::*;
+use crate::lib::page_table::{Entry, EntryAttribute, PageTableEntryAttrTrait, PageTableTrait};
+use crate::mm::PageFrame;
 
 use super::vm_descriptor::*;
 

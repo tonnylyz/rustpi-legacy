@@ -1,4 +1,4 @@
-use arch::{Arch, ArchTrait};
+use crate::arch::{Arch, ArchTrait};
 
 use super::mmio::{read_word, write_word};
 

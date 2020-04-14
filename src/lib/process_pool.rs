@@ -2,8 +2,8 @@ use alloc::vec::Vec;
 
 use spin::Mutex;
 
-use config::*;
-use lib::process::{Pid, Process, Status};
+use crate::config::*;
+use crate::lib::process::{Pid, Process, Status};
 
 struct ProcessPool {
   free: Vec<Process>,
@@ -29,7 +29,7 @@ impl ProcessPool {
   }
 
   fn alloc(&mut self, parent: Option<Process>, arg: usize) -> Result<Process, Error> {
-    use arch::{ContextFrame, ContextFrameTrait};
+    use crate::arch::{ContextFrame, ContextFrameTrait};
     unsafe {
       if let Some(p) = self.free.pop() {
         p.setup_vm();

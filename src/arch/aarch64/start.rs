@@ -1,4 +1,4 @@
-use board::BoardTrait;
+use crate::board::BoardTrait;
 
 use super::config::*;
 

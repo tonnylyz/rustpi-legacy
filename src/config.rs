@@ -1,7 +1,7 @@
 use core::ops::Range;
 
-use arch::*;
-use board::*;
+use crate::arch::*;
+use crate::board::*;
 
 // non paged memory in kernel (kernel heap memory)
 pub const CONFIG_NON_PAGED_MEMORY_SIZE: usize = 0xf00_0000;

@@ -3,8 +3,8 @@ use core::ops::Range;
 
 use spin::Mutex;
 
-use arch::*;
-use mm::PageFrame;
+use crate::arch::*;
+use crate::mm::PageFrame;
 
 use self::Error::*;
 

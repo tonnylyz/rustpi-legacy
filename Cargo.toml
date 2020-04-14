@@ -2,6 +2,7 @@
 name = "rustpi"
 version = "0.1.0"
 build = "build.rs"
+edition = "2018"
 
 [[bin]]
 name = "rustpi"
@@ -18,4 +19,3 @@ register = "0.5.0"
 buddy_system_allocator = "0.3.9"
 spin = "0.5.2"
 xmas-elf = "0.7.0"
-static_assertions = "1.1.0"

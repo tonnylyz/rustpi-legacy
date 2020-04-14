@@ -1,7 +1,7 @@
 use alloc::vec::Vec;
 
-use lib::process::Process;
-use arch::ArchTrait;
+use crate::arch::ArchTrait;
+use crate::lib::process::Process;
 
 #[derive(Copy, Clone)]
 pub struct RoundRobinScheduler {

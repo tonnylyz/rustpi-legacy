@@ -3,7 +3,7 @@ use core::ops::Range;
 // rCore buddy system allocator
 use buddy_system_allocator::LockedHeap;
 
-use arch::pa2kva;
+use crate::arch::pa2kva;
 
 #[global_allocator]
 static HEAP_ALLOCATOR: LockedHeap = LockedHeap::empty();

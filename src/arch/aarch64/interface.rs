@@ -1,12 +1,11 @@
 use cortex_a::{asm::*, regs::*};
 
-use lib::page_table::PageTableTrait;
-
+use crate::arch::aarch64::core::CORES;
+use crate::board::BOARD_CORE_NUMBER;
+use crate::lib::page_table::PageTableTrait;
+use crate::lib::process::Process;
+use crate::lib::scheduler::SchedulerTrait;
 use crate::mm::PageFrame;
-use arch::aarch64::core::CORES;
-use board::BOARD_CORE_NUMBER;
-use lib::process::Process;
-use lib::scheduler::SchedulerTrait;
 
 pub type Arch = Aarch64Arch;
 

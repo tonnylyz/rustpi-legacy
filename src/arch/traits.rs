@@ -1,5 +1,5 @@
-use arch::{AddressSpaceId, PageTable, ContextFrame};
-use lib::process::Process;
+use crate::arch::{AddressSpaceId, ContextFrame, PageTable};
+use crate::lib::process::Process;
 
 pub trait ArchTrait {
   fn exception_init();

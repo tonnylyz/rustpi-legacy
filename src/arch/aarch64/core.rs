@@ -1,6 +1,6 @@
-use board::BOARD_CORE_NUMBER;
-use lib::process::Process;
-use lib::scheduler::RoundRobinScheduler;
+use crate::board::BOARD_CORE_NUMBER;
+use crate::lib::process::Process;
+use crate::lib::scheduler::RoundRobinScheduler;
 
 #[derive(Copy, Clone)]
 pub struct Core {

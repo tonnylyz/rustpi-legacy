@@ -1,8 +1,8 @@
 use core::fmt::{Display, Formatter};
 
-use arch::*;
-use config::*;
-use lib::page_table::{EntryAttribute, PageTableEntryAttrTrait, PageTableTrait};
+use crate::arch::*;
+use crate::config::*;
+use crate::lib::page_table::{EntryAttribute, PageTableEntryAttrTrait, PageTableTrait};
 
 pub type Pid = u16;
 

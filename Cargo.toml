@@ -1,21 +1,19 @@
 [package]
 name = "rustpi"
 version = "0.1.0"
-build = "build.rs"
 edition = "2018"
-
-[[bin]]
-name = "rustpi"
-path = "src/main.rs"
-
-[package.metadata.cargo-xbuild]
-memcpy = true
-sysroot_path = "target/sysroot"
-
+authors = ["tonnylyz <lyztonny@gmail.com>"]
+build = "build.rs"
 
 [dependencies]
-cortex-a = { git = "https://github.com/tonnylyz/cortex-a"}
+rlibc = "0.1"
 register = "0.5.0"
 buddy_system_allocator = "0.3.9"
 spin = "0.5.2"
 xmas-elf = "0.7.0"
+
+[target.'cfg(target_arch = "aarch64")'.dependencies]
+cortex-a = { git = "https://github.com/tonnylyz/cortex-a"}
+
+[target.'cfg(target_arch = "riscv64")'.dependencies]
+riscv = "0.5.6"

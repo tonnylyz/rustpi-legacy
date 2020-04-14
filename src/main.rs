@@ -10,6 +10,7 @@
 #![feature(asm)]
 
 extern crate alloc;
+extern crate rlibc;
 
 use arch::*;
 
@@ -46,6 +47,7 @@ fn clear_bss() {
 fn static_check() {
   use config::*;
   use core::intrinsics::size_of;
+  #[allow(unused_unsafe)]
   unsafe {
     assert_eq!(size_of::<crate::lib::process::Ipc>(), CONFIG_PROCESS_IPC_SIZE);
     // Note: size of ContextFrame needs to be synced with `arch/aarch64/exception.S`
@@ -55,6 +57,10 @@ fn static_check() {
 
 #[no_mangle]
 pub fn main() -> ! {
+  if cfg!(target_arch = "riscv64") {
+    println!("hello world");
+    loop {}
+  }
   let core_id = arch::Arch::core_id();
   if core_id != 0 {
     loop { arch::Arch::wait_for_event(); } // capture other cores here

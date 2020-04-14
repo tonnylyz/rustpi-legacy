@@ -9,7 +9,7 @@ pub const CONFIG_NON_PAGED_MEMORY_SIZE: usize = 0xf00_0000;
 // helper functions
 pub fn paged_range() -> Range<usize> {
   extern "C" {
-    // Note: link-time label, see kernel.lds
+    // Note: link-time label, see kernel.aarch64.lds
     fn KERNEL_END();
   }
   let kernel_end = round_up(kva2pa(KERNEL_END as usize), PAGE_SIZE);

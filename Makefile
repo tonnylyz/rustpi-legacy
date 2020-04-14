@@ -1,22 +1,32 @@
-#PATH := $(HOME)/.cargo/bin:/usr/local/x86_64_aarch64-elf/bin:$(PATH)
+.PHONY: all clean kernel emu
 
-.PHONY: all clean kernel emu debug
+ARM:=1
+#RISCV:=1
 
-all: kernel
+ifdef ARM
+ARCH:= aarch64
+CROSS:= ${ARCH}-elf-
+endif
+ifdef RISCV
+ARCH:= riscv64
+CROSS:= ${ARCH}-unknown-elf-
+endif
+
+kernel:
+	cargo build --target target.${ARCH}.json -Zbuild-std=core,alloc --release
+	cp target/target.${ARCH}/release/rustpi rustpi.${ARCH}.elf
+	${CROSS}objcopy rustpi.${ARCH}.elf -O binary rustpi.${ARCH}.img
+	${CROSS}objdump -D rustpi.${ARCH}.elf > debug.${ARCH}.D
+	${CROSS}objdump -x rustpi.${ARCH}.elf > debug.${ARCH}.x
+	${CROSS}nm -n rustpi.${ARCH}.elf > debug.${ARCH}.nm
+
+emu: kernel
+ifdef ARM
+	qemu-system-aarch64 -M raspi3 -kernel rustpi.${ARCH}.img -serial null -serial stdio -display none
+endif
+ifdef RISCV
+	qemu-system-riscv64 -M virt -bios default -device loader,file=rustpi.${ARCH}.img,addr=0x80200000 -display none
+endif
 
 clean:
 	cargo clean
-
-kernel:
-	cargo xbuild --target aarch64-none-elf.json --release
-	cp target/aarch64-none-elf/release/rustpi kernel.elf
-	aarch64-elf-objcopy kernel.elf -O binary kernel8.img
-	aarch64-elf-objdump -D kernel.elf > debug.D
-	aarch64-elf-objdump -x kernel.elf > debug.x
-	aarch64-elf-nm -n kernel.elf > debug.nm
-
-debug: kernel
-	aarch64-elf-gdb -x debug.gdb
-
-emu: kernel
-	qemu-system-aarch64 -M raspi3 -kernel kernel8.img -serial null -serial stdio -display none

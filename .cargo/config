@@ -1,7 +1,0 @@
-[build]
-rustflags = [
-  "-C",
-  "link-arg=-e_start",
-  "-C",
-  "link-arg=-Tkernel.lds"
-]

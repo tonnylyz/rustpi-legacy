@@ -26,4 +26,4 @@ jobs:
     - name: Unpack linaro gcc toolchain
       run: tar -xf gcc-linaro-7.5.0-2019.12-x86_64_aarch64-elf.tar.xz
     - name: Build
-      run: PATH=gcc-linaro-7.5.0-2019.12-x86_64_aarch64-elf/bin:$PATH cargo xbuild --target aarch64-none-elf.json --release
+      run: PATH=gcc-linaro-7.5.0-2019.12-x86_64_aarch64-elf/bin:$PATH cargo xbuild --target target.aarch64.json --release

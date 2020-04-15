@@ -28,6 +28,11 @@ pub fn pte2pa(pte: usize) -> usize {
 }
 
 #[inline(always)]
+pub fn pa2pte(pa: usize) -> usize {
+  pa
+}
+
+#[inline(always)]
 pub fn round_up(addr: usize, n: usize) -> usize {
   (addr + n - 1) & !(n - 1)
 }

@@ -52,7 +52,7 @@ KERNEL_PAGE_DIRECTORY:
     # G: global mapping (exist in all address spaces)
     # A: accessed (leaf PTE) clear to trigger page fault
     # D: dirty (leaf PTE) clear to trigger page fault
-    # RSW: not used in supervisor
+    # RSW: supervisor defined
     # Note: also see sstatus::SUM bit (supervisor mode can also access pages with U=1)
     .quad 0
     .quad 0

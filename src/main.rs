@@ -50,18 +50,19 @@ fn static_check() {
   #[allow(unused_unsafe)]
   unsafe {
     assert_eq!(size_of::<crate::lib::process::Ipc>(), CONFIG_PROCESS_IPC_SIZE);
-    // Note: size of ContextFrame needs to be synced with `arch/aarch64/exception.S`
-    assert_eq!(size_of::<ContextFrame>(), 0x110);
+    // Note: size of ContextFrame needs to be synced with `arch/*/exception.S`
+    if cfg!(target_arch = "aarch64") {
+      assert_eq!(size_of::<ContextFrame>(), 0x110);
+    } else if cfg!(target_arch = "riscv64") {
+      assert_eq!(size_of::<ContextFrame>(), 0x120);
+    } else {
+      panic!("unsupported arch");
+    }
   }
 }
 
 #[no_mangle]
 pub fn main() -> ! {
-  driver::uart::init();
-  if cfg!(target_arch = "riscv64") {
-    println!("hello world");
-    loop {}
-  }
   let core_id = arch::Arch::core_id();
   if core_id != 0 {
     loop { arch::Arch::wait_for_event(); } // capture other cores here
@@ -77,7 +78,10 @@ pub fn main() -> ! {
     //    0 - fktest: a `fork` test
     //    1 - pingpong: an IPC test
     //    2 - heap_test: test copy on write of heap
-    lib::process::Process::create(&lib::user_image::_binary_user_elf_start, 0);
+    #[cfg(target_arch = "aarch64")]
+      lib::process::Process::create(&lib::user_image::_binary_user_aarch64_elf_start, 0);
+    #[cfg(target_arch = "riscv64")]
+      lib::process::Process::create(&lib::user_image::_binary_user_riscv64_elf_start, 'a' as u8 as usize);
   }
   arch::Arch::exception_init();
   driver::timer::init(core_id);

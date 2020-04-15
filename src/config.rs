@@ -26,7 +26,7 @@ pub fn heap_range() -> Range<usize> {
 pub const CONFIG_PROCESS_NUMBER: usize = 1 << 10;
 pub const CONFIG_PROCESS_IPC_SIZE: usize = 32;
 
-pub const CONFIG_RECURSIVE_PAGE_TABLE_BTM: usize = 0x7f_c000_0000;
-pub const CONFIG_USER_IPC_LIST_BTM: usize = 0x7f_a000_0000;
-pub const CONFIG_USER_LIMIT: usize = 0x7f_a000_0000;
-pub const CONFIG_USER_STACK_TOP: usize = 0x7f_8000_0000;
+pub const CONFIG_RECURSIVE_PAGE_TABLE_BTM: usize = 0x3f_c000_0000;
+pub const CONFIG_USER_IPC_LIST_BTM: usize = 0x3f_a000_0000;
+pub const CONFIG_USER_LIMIT: usize = 0x3f_a000_0000;
+pub const CONFIG_USER_STACK_TOP: usize = 0x3f_8000_0000;

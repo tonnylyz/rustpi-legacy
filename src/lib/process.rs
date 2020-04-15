@@ -120,11 +120,16 @@ impl Process {
       let frame = crate::mm::page_pool::alloc();
       crate::mm::page_pool::increase_rc(frame);
       let page_table = PageTable::new(frame);
-      page_table.recursive_map(CONFIG_RECURSIVE_PAGE_TABLE_BTM);
-      for i in 0..(CONFIG_PROCESS_IPC_SIZE * CONFIG_PROCESS_NUMBER / PAGE_SIZE) {
-        let va = CONFIG_USER_IPC_LIST_BTM + i * PAGE_SIZE;
-        let pa = kva2pa(&IPC_LIST[i * (PAGE_SIZE / CONFIG_PROCESS_IPC_SIZE)] as *const Ipc as usize);
-        page_table.map(va, pa, EntryAttribute::user_readonly());
+      if cfg!(target_arch = "aarch64") {
+        page_table.recursive_map(CONFIG_RECURSIVE_PAGE_TABLE_BTM);
+        for i in 0..(CONFIG_PROCESS_IPC_SIZE * CONFIG_PROCESS_NUMBER / PAGE_SIZE) {
+          let va = CONFIG_USER_IPC_LIST_BTM + i * PAGE_SIZE;
+          let pa = kva2pa(&IPC_LIST[i * (PAGE_SIZE / CONFIG_PROCESS_IPC_SIZE)] as *const Ipc as usize);
+          page_table.map(va, pa, EntryAttribute::user_readonly());
+        }
+      } else {
+        // TODO: recursivemap for riscv64
+        // TODO: ipc map for riscv64
       }
       (*self.pcb()).page_table = Some(page_table);
     }

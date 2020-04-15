@@ -140,7 +140,7 @@ impl InterruptServiceRoutine for Isr {
         panic!("core_{} irq source not timer", core_id);
       }
     }
-    crate::driver::timer::next(0);
+    crate::driver::timer::next();
     crate::lib::scheduler::schedule();
     //println!("core_{} irq return", core_id);
   }
@@ -197,7 +197,7 @@ impl InterruptServiceRoutine for Isr {
       println!("pc: {:016x}", (*crate::arch::Arch::context()).exception_pc());
       println!("{:?}", (*crate::arch::Arch::running_process().unwrap().pcb()).page_table.unwrap().lookup_page((*crate::arch::Arch::context()).exception_pc()));
       println!("{}", (*crate::arch::Arch::context()));
-      println!("isr: default: process killed");
+      panic!("isr: default: process killed");
       crate::arch::Arch::running_process().unwrap().destroy();
     }
   }

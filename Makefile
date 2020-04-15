@@ -25,7 +25,7 @@ ifdef ARM
 	qemu-system-aarch64 -M raspi3 -kernel rustpi.${ARCH}.img -serial null -serial stdio -display none
 endif
 ifdef RISCV
-	qemu-system-riscv64 -M virt -bios default -device loader,file=rustpi.${ARCH}.img,addr=0x80200000 -serial stdio -display none
+	qemu-system-riscv64 -M virt -m 1024 -bios default -device loader,file=rustpi.${ARCH}.img,addr=0x80200000 -serial stdio -display none
 endif
 
 clean:

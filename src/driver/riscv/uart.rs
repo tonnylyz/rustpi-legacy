@@ -2,7 +2,7 @@ use crate::driver::mmio::*;
 // Note: NS16550A uart driver from
 // https://github.com/michaeljclark/riscv-probe/blob/master/libfemto/drivers/ns16550a.c
 
-const UART_BASE_ADDR: usize = 0x10000000;
+const UART_BASE_ADDR: usize = 0xffff_ffff_0000_0000 + 0x1000_0000;
 
 const UART_RBR      :usize = 0x00;  /* Receive Buffer Register */
 const UART_THR      :usize = 0x00;  /* Transmit Hold Register */

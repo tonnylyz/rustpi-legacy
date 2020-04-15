@@ -1,9 +1,7 @@
 pub const PAGE_SIZE: usize = 4096;
 
-// TODO: modify these const for riscv64
-pub const PA2KVA: usize = 0xFFFF_FF80_0000_0000;
-pub const PTE2PA: usize = 0x0000_FFFF_FFFF_F000;
-pub const KVA2PA: usize = 0xFFFF_FFFF;
+const PA2KVA: usize = 0xFFFF_FFFF_0000_0000;
+const KVA2PA: usize = 0xFFFF_FFFF;
 
 // helper function
 #[inline(always)]
@@ -18,7 +16,7 @@ pub fn kva2pa(kva: usize) -> usize {
 
 #[inline(always)]
 pub fn pte2pa(pte: usize) -> usize {
-  pte & PTE2PA
+  ((pte >> 10) << 12) & KVA2PA
 }
 
 #[inline(always)]

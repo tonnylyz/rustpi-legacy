@@ -57,6 +57,7 @@ fn static_check() {
 
 #[no_mangle]
 pub fn main() -> ! {
+  driver::uart::init();
   if cfg!(target_arch = "riscv64") {
     println!("hello world");
     loop {}

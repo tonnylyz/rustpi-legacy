@@ -117,11 +117,11 @@ impl InterruptServiceRoutine for Isr {
       match scr {
         SystemCallResult::Void => {}
         SystemCallResult::Pid(pid) => {
-          //println!("[{}]:{}:{:?}", CURRENT.unwrap().pid(), (*crate::arch::Arch::context()).syscall_number(), scr);
+          //println!("{}:{:?}", (*crate::arch::Arch::context()).syscall_number(), scr);
           (*crate::arch::Arch::context()).set_syscall_return_value(pid as usize);
         }
         SystemCallResult::R(o) => {
-          //println!("[{}]:{}:{:?}", CURRENT.unwrap().pid(), (*crate::arch::Arch::context()).syscall_number(), scr);
+          //println!("{}:{:?}", (*crate::arch::Arch::context()).syscall_number(), scr);
           match o {
             None => { (*crate::arch::Arch::context()).set_syscall_return_value(0); }
             Some(i) => { (*crate::arch::Arch::context()).set_syscall_return_value(i as usize); }
@@ -131,18 +131,17 @@ impl InterruptServiceRoutine for Isr {
     }
   }
   fn interrupt_request() {
-    let core_id = crate::arch::Arch::core_id();
+    //let core_id = crate::arch::Arch::core_id();
     //println!("core_{} irq", core_id);
     //println!("{:016x}", crate::arch::Arch::context() as usize);
-    unsafe {
-      let irq_source = crate::driver::mmio::read_word(pa2kva(0x4000_0060 + 4 * core_id));
-      if (irq_source >> 1) & 0b1 == 0 {
-        panic!("core_{} irq source not timer", core_id);
-      }
-    }
+    //unsafe {
+    //  let irq_source = crate::driver::mmio::read_word(pa2kva(0x4000_0060 + 4 * core_id));
+    //  if (irq_source >> 1) & 0b1 == 0 {
+    //    panic!("core_{} irq source not timer", core_id);
+    //  }
+    //}
     crate::driver::timer::next();
     crate::lib::scheduler::schedule();
-    //println!("core_{} irq return", core_id);
   }
   fn page_fault() {
     unsafe {

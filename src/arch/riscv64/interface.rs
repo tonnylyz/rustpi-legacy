@@ -30,16 +30,12 @@ impl crate::arch::ArchTrait for Riscv64Arch {
   fn start_first_process() -> ! {
     use core::intrinsics::size_of;
     extern {
-      fn get_sp() -> usize;
-      fn set_sp(sp: usize);
-      fn pop_context() -> !;
+      fn pop_context_first(ctx: usize) -> !;
     }
     unsafe {
-      let ctx = get_sp() - size_of::<ContextFrame>();
-      let context = ctx as *mut ContextFrame;
-      *context = (*crate::arch::Arch::running_process().unwrap().pcb()).context.unwrap();
-      set_sp(ctx);
-      pop_context();
+      let context = (*crate::arch::Arch::running_process().unwrap().pcb()).context.unwrap();
+      //sie::set_stimer();
+      pop_context_first(&context as *const ContextFrame as usize)
     }
   }
 

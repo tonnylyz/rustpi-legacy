@@ -1,15 +1,12 @@
 use core::fmt::Formatter;
 use riscv::register::*;
-use riscv::register::sstatus::Sstatus;
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
 pub struct Riscv64ContextFrame {
   gpr: [u64; 32],
-  sstatus: Sstatus,
+  sstatus: u64,
   sepc: u64,
-  scause: u64,
-  stval: u64,
 }
 
 impl core::fmt::Display for Riscv64ContextFrame {
@@ -20,10 +17,8 @@ impl core::fmt::Display for Riscv64ContextFrame {
         write!(f, "\n")?;
       }
     }
-    write!(f, "sstatus: {:?}", self.sstatus);
-    writeln!(f, "    sepc: {:016x}", self.sepc);
-    write!(f, "scause: {:016x}", self.scause);
-    writeln!(f, "    stval: {:016x}", self.stval);
+    write!(f, "sst: {:016x}", self.sstatus);
+    writeln!(f, "   epc: {:016x}", self.sepc);
     Ok(())
   }
 }
@@ -42,12 +37,11 @@ impl Default for Riscv64ContextFrame {
       // mode. When a trap is taken into supervisor mode, SPIE is set to SIE, and SIE is set to 0. When
       // an SRET instruction is executed, SIE is set to SPIE, then SPIE is set to 1.
       sstatus.set_spie(true);
+      println!("sstatus {:016x}", sstatus.bits());
       Riscv64ContextFrame {
-        gpr: [0; 32],
-        sstatus,
-        sepc: 0xdeadbeef,
-        scause: 0,
-        stval: 0
+        gpr: [0xdeadbeef_deadbeef; 32],
+        sstatus: sstatus.bits() as u64,
+        sepc: 0xdeadbeef_deadbeef,
       }
     }
   }

@@ -32,18 +32,10 @@ impl SchedulerTrait for RoundRobinScheduler {
         continue;
       }
       let i = self.counter % candidates.len();
-      let candidate = candidates[i];
-      if candidates[i].is_runnable() {
-        candidate.lock();
-        if let Some(_) = candidate.running_at() {
-          candidate.unlock();
-          continue;
-        } else {
-          candidate.set_running_at(Some(core_id));
-          candidate.unlock();
-        }
-        println!("\ncore_{} scheduler: switch to [{}]", core_id, candidates[i].pid());
-        candidates[i].run();
+      let p = candidates[i];
+      if p.is_runnable() {
+        //println!("\ncore_{} scheduler: switch to [{}]", core_id, p.pid());
+        p.run();
         return;
       }
     }

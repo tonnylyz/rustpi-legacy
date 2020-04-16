@@ -1,5 +1,5 @@
 use riscv::register::*;
-use crate::arch::ContextFrame;
+use crate::arch::{ContextFrame, ArchTrait, ContextFrameTrait};
 use riscv::register::scause::{Trap, Interrupt, Exception};
 use crate::lib::isr::{Isr, InterruptServiceRoutine};
 
@@ -9,33 +9,41 @@ global_asm!(include_str!("exception.S"));
 unsafe extern "C" fn exception_entry(ctx: usize) {
   super::interface::CONTEXT = Some(ctx);
   let cause = scause::read();
-  println!("{:?}", cause.cause());
+  //println!("{:?}", cause.cause());
   match cause.cause() {
     Trap::Interrupt(i) => {
       match i {
-        Interrupt::UserSoft => {Isr::default()},
-        Interrupt::SupervisorSoft => {Isr::default()},
-        Interrupt::UserTimer => {Isr::default()},
+        Interrupt::UserSoft => {panic!("Interrupt::UserSoft")},
+        Interrupt::SupervisorSoft => {panic!("Interrupt::SupervisorSoft")},
+        Interrupt::UserTimer => {panic!("Interrupt::UserTimer")},
         Interrupt::SupervisorTimer => {Isr::interrupt_request()},
-        Interrupt::UserExternal => {Isr::default()},
-        Interrupt::SupervisorExternal => {Isr::default()},
-        Interrupt::Unknown => {Isr::default()},
+        Interrupt::UserExternal => {panic!("Interrupt::UserExternal")},
+        Interrupt::SupervisorExternal => {panic!("Interrupt::SupervisorExternal")},
+        Interrupt::Unknown => {panic!("Interrupt::Unknown")},
       }
     },
     Trap::Exception(e) => {
       match e {
-        Exception::InstructionMisaligned => {Isr::default()},
-        Exception::InstructionFault => {Isr::default()},
-        Exception::IllegalInstruction => {Isr::default()},
-        Exception::Breakpoint => {Isr::default()},
-        Exception::LoadFault => {Isr::default()},
-        Exception::StoreMisaligned => {Isr::default()},
-        Exception::StoreFault => {Isr::default()},
-        Exception::UserEnvCall => {Isr::system_call()},
-        Exception::InstructionPageFault => {Isr::default()},
-        Exception::LoadPageFault => {Isr::default()},
-        Exception::StorePageFault => {Isr::default()},
-        Exception::Unknown => {Isr::default()},
+        Exception::InstructionMisaligned => {panic!("Exception::InstructionMisaligned")},
+        Exception::InstructionFault => {panic!("Exception::InstructionFault")},
+        Exception::IllegalInstruction => {panic!("Exception::IllegalInstruction")},
+        Exception::Breakpoint => {panic!("Exception::Breakpoint")},
+        Exception::LoadFault => {panic!("Exception::LoadFault")},
+        Exception::StoreMisaligned => {panic!("Exception::StoreMisaligned")},
+        Exception::StoreFault => {
+
+          println!("{:016x}", stval::read());
+          panic!("Exception::StoreFault")
+        },
+        Exception::UserEnvCall => {
+          Isr::system_call();
+          let pc = (*super::interface::Arch::context()).exception_pc();
+          (*super::interface::Arch::context()).set_exception_pc(pc + 4);
+        },
+        Exception::InstructionPageFault => {Isr::page_fault()},
+        Exception::LoadPageFault => {Isr::page_fault()},
+        Exception::StorePageFault => {Isr::page_fault()},
+        Exception::Unknown => {panic!("Exception::Unknown")},
       }
     },
   }

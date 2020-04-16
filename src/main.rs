@@ -54,7 +54,7 @@ fn static_check() {
     if cfg!(target_arch = "aarch64") {
       assert_eq!(size_of::<ContextFrame>(), 0x110);
     } else if cfg!(target_arch = "riscv64") {
-      assert_eq!(size_of::<ContextFrame>(), 0x120);
+      assert_eq!(size_of::<ContextFrame>(), 0x110);
     } else {
       panic!("unsupported arch");
     }

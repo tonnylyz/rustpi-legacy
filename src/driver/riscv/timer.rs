@@ -10,8 +10,5 @@ pub fn next() {
 }
 
 pub fn init(core_id: usize) {
-  unsafe {
-    sie::set_stimer()
-  }
   next();
 }

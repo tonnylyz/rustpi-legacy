@@ -71,7 +71,6 @@ impl core::convert::From<Entry> for Riscv64PageTableEntry {
         + PAGE_DESCRIPTOR::USER::True
         + PAGE_DESCRIPTOR::OUTPUT_PPN.val((pte.pa() >> PAGE_SHIFT) as u64)
     ).value);
-    println!("leaf pte: {:016x}", r.0);
     r
   }
 }
@@ -101,7 +100,6 @@ fn alloc_page_table() -> Riscv64PageTableEntry {
   crate::mm::page_pool::increase_rc(frame);
   //Riscv64PageTableEntry::from(Entry::new(EntryAttribute::user_readonly(), frame.pa()))
   let r = Riscv64PageTableEntry::new(((frame.pa() >> PAGE_SHIFT) << 10) | 0b11010001);
-  println!("alloc_page_table: {:016x}", r.0);
   r
 }
 

@@ -84,7 +84,7 @@ dependencies = [
 [[package]]
 name = "riscv"
 version = "0.5.0"
-source = "git+https://github.com/rcore-os/riscv#c62af4642b4bd62a8a714119ab061e82be68f80f"
+source = "git+https://github.com/tonnylyz/riscv#547bc03ba2d1e8d1366af59a683873984f333a45"
 dependencies = [
  "bare-metal",
  "bit_field",

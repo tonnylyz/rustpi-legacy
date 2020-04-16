@@ -1,5 +1,5 @@
 use core::fmt::Formatter;
-use riscv::register::*;
+use riscv::regs::*;
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
@@ -17,8 +17,8 @@ impl core::fmt::Display for Riscv64ContextFrame {
         write!(f, "\n")?;
       }
     }
-    write!(f, "sst: {:016x}", self.sstatus);
-    writeln!(f, "   epc: {:016x}", self.sepc);
+    write!(f, "sst: {:016x}", self.sstatus)?;
+    writeln!(f, "   epc: {:016x}", self.sepc)?;
     Ok(())
   }
 }
@@ -26,21 +26,17 @@ impl core::fmt::Display for Riscv64ContextFrame {
 impl Default for Riscv64ContextFrame {
   fn default() -> Self {
     unsafe {
-      let mut sstatus = sstatus::read();
-      sstatus.set_spp(sstatus::SPP::User);
+      let mut sstatus = SSTATUS.get();
       // Note: The SIE bit enables or disables all interrupts in supervisor mode. When SIE is clear, interrupts
       // are not taken while in supervisor mode. When the hart is running in user-mode, the value in
       // SIE is ignored, and supervisor-level interrupts are enabled. The supervisor can disable individual
       // interrupt sources using the sie CSR.
-      sstatus.set_sie(false);
       // Note: The SPIE bit indicates whether supervisor interrupts were enabled prior to trapping into supervisor
       // mode. When a trap is taken into supervisor mode, SPIE is set to SIE, and SIE is set to 0. When
       // an SRET instruction is executed, SIE is set to SPIE, then SPIE is set to 1.
-      sstatus.set_spie(true);
-      println!("sstatus {:016x}", sstatus.bits());
       Riscv64ContextFrame {
         gpr: [0xdeadbeef_deadbeef; 32],
-        sstatus: sstatus.bits() as u64,
+        sstatus: sstatus | (SSTATUS::SPP::User + SSTATUS::SPIE.val(1)).value,
         sepc: 0xdeadbeef_deadbeef,
       }
     }

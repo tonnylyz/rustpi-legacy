@@ -1,5 +1,5 @@
 use crate::main;
-use riscv::{asm::*, register::*};
+use riscv::{asm::*, regs::*};
 
 global_asm!(include_str!("start.S"));
 

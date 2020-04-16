@@ -1,4 +1,4 @@
-use riscv::register::*;
+use riscv::regs::*;
 
 use crate::arch::{PAGE_SHIFT, PAGE_SIZE};
 use crate::lib::page_table::PageTableTrait;
@@ -40,12 +40,13 @@ impl crate::arch::ArchTrait for Riscv64Arch {
   }
 
   fn kernel_page_table() -> PageTable {
-    PageTable::new(PageFrame::new(satp::read().ppn() << PAGE_SHIFT))
+    let ppn = SATP.read(SATP::PPN) as usize;
+    PageTable::new(PageFrame::new(ppn << PAGE_SHIFT))
   }
 
   fn user_page_table() -> PageTable {
     // Note user and kernel share page directory
-    PageTable::new(PageFrame::new(satp::read().ppn() << PAGE_SHIFT))
+    Self::kernel_page_table()
   }
 
   fn set_user_page_table(pt: PageTable, asid: AddressSpaceId) {
@@ -61,31 +62,25 @@ impl crate::arch::ArchTrait for Riscv64Arch {
       //    println!("{}:{:016x}", i, (*directory)[i]);
       //  }
       //}
-      satp::set(satp::Mode::Sv39, 0/*asid as usize*/, pt.directory().pa() >> PAGE_SHIFT);
-      riscv::asm::sfence_vma_all();
+      SATP.write(SATP::MODE::Sv39 + SATP::ASID.val(asid as u64) + SATP::PPN.val((pt.directory().pa() >> PAGE_SHIFT) as u64));
+      riscv::barrier::sfence_vma_all();
     }
   }
 
   fn invalidate_tlb() {
-    unsafe {
-      riscv::asm::sfence_vma_all();
-    }
+    riscv::barrier::sfence_vma_all();
   }
 
   fn wait_for_event() {
-    unsafe {
-      riscv::asm::wfi();
-    }
+    riscv::asm::wfi();
   }
 
   fn nop() {
-    unsafe {
-      asm!("nop");
-    }
+    riscv::asm::nop();
   }
 
   fn fault_address() -> usize {
-    stval::read()
+    STVAL.get() as usize
   }
 
   fn core_id() -> usize {

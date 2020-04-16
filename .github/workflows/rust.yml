@@ -26,6 +26,6 @@ jobs:
     - run: tar -xf gcc-linaro-7.5.0-2019.12-x86_64_aarch64-elf.tar.xz
     - run: tar -xf riscv64-unknown-elf-gcc-8.3.0-2019.08.0-x86_64-linux-ubuntu14.tar.gz
     - name: Build for aarch64
-      run: PATH=gcc-linaro-7.5.0-2019.12-x86_64_aarch64-elf/bin:$PATH cargo build --target target.aarch64.json -Zbuild-std=core,alloc --release
+      run: PATH=gcc-linaro-7.5.0-2019.12-x86_64_aarch64-elf/bin:$PATH make aarch64
     - name: Build for riscv64
-      run: PATH=riscv64-unknown-elf-gcc-8.3.0-2019.08.0-x86_64-linux-ubuntu14/bin:$PATH cargo build --target target.riscv64.json -Zbuild-std=core,alloc --release
+      run: PATH=riscv64-unknown-elf-gcc-8.3.0-2019.08.0-x86_64-linux-ubuntu14/bin:$PATH make riscv64

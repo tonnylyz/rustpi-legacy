@@ -13,17 +13,19 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+      with:
+        - submodules: true
     - name: Install Rust nightly toolchain
       uses: actions-rs/toolchain@v1.0.6
       with: 
         toolchain: nightly
         components: rust-src
         override: true
-    - name: Download linaro gcc toolchain
-      run: wget 'https://releases.linaro.org/components/toolchain/binaries/latest-7/aarch64-elf/gcc-linaro-7.5.0-2019.12-x86_64_aarch64-elf.tar.xz'
-    - name: Unpack linaro gcc toolchain
-      run: tar -xf gcc-linaro-7.5.0-2019.12-x86_64_aarch64-elf.tar.xz
+    - run: wget 'https://releases.linaro.org/components/toolchain/binaries/latest-7/aarch64-elf/gcc-linaro-7.5.0-2019.12-x86_64_aarch64-elf.tar.xz'
+    - run: wget 'https://static.dev.sifive.com/dev-tools/riscv64-unknown-elf-gcc-8.3.0-2019.08.0-x86_64-linux-ubuntu14.tar.gz'
+    - run: tar -xf gcc-linaro-7.5.0-2019.12-x86_64_aarch64-elf.tar.xz
+    - run: tar -xf riscv64-unknown-elf-gcc-8.3.0-2019.08.0-x86_64-linux-ubuntu14.tar.gz
     - name: Build for aarch64
       run: PATH=gcc-linaro-7.5.0-2019.12-x86_64_aarch64-elf/bin:$PATH cargo build --target target.aarch64.json -Zbuild-std=core,alloc --release
     - name: Build for riscv64
-      run: cargo build --target target.riscv64.json -Zbuild-std=core,alloc --release
+      run: PATH=riscv64-unknown-elf-gcc-8.3.0-2019.08.0-x86_64-linux-ubuntu14/bin:$PATH cargo build --target target.riscv64.json -Zbuild-std=core,alloc --release

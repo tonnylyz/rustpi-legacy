@@ -1,32 +1,26 @@
-.PHONY: all clean kernel emu
+.PHONY: all user aarch64 riscv64 aarch64-emu riscv64-emu
 
-#ARM:=1
-RISCV:=1
+AARCH64_CROSS:= aarch64-elf-
+RISCV64_CROSS:=riscv-unknown-elf-
 
-ifdef ARM
-ARCH:= aarch64
-CROSS:= ${ARCH}-elf-
-endif
-ifdef RISCV
-ARCH:= riscv64
-CROSS:= ${ARCH}-unknown-elf-
-endif
+all: aarch64 riscv64
 
-kernel:
-	cargo build --target target.${ARCH}.json -Zbuild-std=core,alloc --release
-	cp target/target.${ARCH}/release/rustpi rustpi.${ARCH}.elf
-	${CROSS}objcopy rustpi.${ARCH}.elf -O binary rustpi.${ARCH}.img
-	${CROSS}objdump -D rustpi.${ARCH}.elf > debug.${ARCH}.D
-	${CROSS}objdump -x rustpi.${ARCH}.elf > debug.${ARCH}.x
-	${CROSS}nm -n rustpi.${ARCH}.elf > debug.${ARCH}.nm
+user:
+	make -C user
 
-emu: kernel
-ifdef ARM
-	qemu-system-aarch64 -M raspi3 -kernel rustpi.${ARCH}.img -serial null -serial stdio -display none
-endif
-ifdef RISCV
-	qemu-system-riscv64 -M virt -m 1024 -bios default -device loader,file=rustpi.${ARCH}.img,addr=0x80200000 -serial stdio -display none
-endif
+aarch64: user
+	cargo build --target target.aarch64.json -Zbuild-std=core,alloc --release
+	${AARCH64_CROSS}objcopy target/target.aarch64/release/rustpi -O binary rustpi.aarch64.img
+
+riscv64: user
+	cargo build --target target.riscv64.json -Zbuild-std=core,alloc --release
+	${RISCV64_CROSS}objcopy target/target.riscv64/release/rustpi -O binary rustpi.riscv64.img
+
+aarch64-emu: aarch64
+	qemu-system-aarch64 -M raspi3 -kernel rustpi.aarch64.img -serial null -serial stdio -display none
+
+riscv64-emu: riscv64
+	qemu-system-riscv64 -M virt -m 1024 -bios default -device loader,file=rustpi.riscv64.img,addr=0x80200000 -serial stdio -display none
 
 clean:
 	cargo clean

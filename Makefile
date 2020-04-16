@@ -1,7 +1,7 @@
-.PHONY: all user aarch64 riscv64 aarch64-emu riscv64-emu
+.PHONY: all clean user aarch64 riscv64 aarch64-emu riscv64-emu
 
-AARCH64_CROSS:= aarch64-elf-
-RISCV64_CROSS:=riscv-unknown-elf-
+AARCH64_CROSS:=aarch64-elf-
+RISCV64_CROSS:=riscv64-unknown-elf-
 
 all: aarch64 riscv64
 

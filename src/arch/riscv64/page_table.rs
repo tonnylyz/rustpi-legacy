@@ -3,6 +3,7 @@ use crate::arch::{ArchPageTableEntryTrait, pte2pa, PAGE_SHIFT, pa2kva, MACHINE_S
 use crate::lib::page_table::{Entry, EntryAttribute, PageTableEntryAttrTrait, PageTableTrait, Error};
 
 use super::vm_descriptor::*;
+use crate::config::{CONFIG_READ_ONLY_LEVEL_1_PAGE_TABLE_BTM, CONFIG_READ_ONLY_LEVEL_2_PAGE_TABLE_BTM, CONFIG_READ_ONLY_LEVEL_3_PAGE_TABLE_BTM};
 
 #[derive(Copy, Clone, Debug)]
 pub struct Riscv64PageTable {
@@ -79,6 +80,7 @@ trait TableDescriptor {
   fn valid(&self) -> bool;
   fn get_entry(&self, index: usize) -> Self;
   fn set_entry(&self, index: usize, value: Self);
+  fn is_gigabyte_page(&self) -> bool;
 }
 
 impl TableDescriptor for Riscv64PageTableEntry {
@@ -93,22 +95,53 @@ impl TableDescriptor for Riscv64PageTableEntry {
     let addr = pa2kva(pte2pa(self.to_usize()) + index * MACHINE_SIZE);
     unsafe { core::intrinsics::volatile_store(addr as *mut u64, value.0) }
   }
+
+  fn is_gigabyte_page(&self) -> bool {
+    self.valid() && self.to_usize() & 0b1110 == 0
+  }
 }
 
 fn alloc_page_table() -> Riscv64PageTableEntry {
   let frame = crate::mm::page_pool::alloc();
   crate::mm::page_pool::increase_rc(frame);
-  //Riscv64PageTableEntry::from(Entry::new(EntryAttribute::user_readonly(), frame.pa()))
-  let r = Riscv64PageTableEntry::new(((frame.pa() >> PAGE_SHIFT) << 10) | 0b11010001);
-  r
+  Riscv64PageTableEntry(
+    (TABLE_DESCRIPTOR::NEXT_LEVEL_TABLE_PPN.val((frame.pa() >> PAGE_SHIFT) as u64)
+      + TABLE_DESCRIPTOR::DIRTY::True
+      + TABLE_DESCRIPTOR::ACCESSED::True
+      + TABLE_DESCRIPTOR::USER::True
+      + TABLE_DESCRIPTOR::VALID::True
+    ).value
+  )
+}
+
+impl Riscv64PageTable {
+  fn map_kernel_gigabyte_page(&self, va: usize, pa: usize) {
+    let l1x = va.l1x();
+    let directory = Riscv64PageTableEntry(pa2pte(self.directory.pa()) as u64);
+    // same as mapping in `start.S`
+    directory.set_entry(l1x, Riscv64PageTableEntry(
+      (PAGE_DESCRIPTOR::OUTPUT_PPN.val((pa >> PAGE_SHIFT) as u64)
+      + PAGE_DESCRIPTOR::DIRTY::True
+      + PAGE_DESCRIPTOR::ACCESSED::True
+      + PAGE_DESCRIPTOR::USER::False
+      + PAGE_DESCRIPTOR::X::True
+      + PAGE_DESCRIPTOR::W::True
+      + PAGE_DESCRIPTOR::R::True
+      + PAGE_DESCRIPTOR::VALID::True).value
+    ));
+  }
 }
 
 impl PageTableTrait for Riscv64PageTable {
   fn new(directory: PageFrame) -> Self {
-    // TODO: Copy high address kernel page directory
-    Riscv64PageTable {
+    let r = Riscv64PageTable {
       directory
-    }
+    };
+    r.map_kernel_gigabyte_page(0xffff_ffff_0000_0000, 0x0000_0000);
+    r.map_kernel_gigabyte_page(0xffff_ffff_4000_0000, 0x4000_0000);
+    r.map_kernel_gigabyte_page(0xffff_ffff_8000_0000, 0x8000_0000);
+    r.map_kernel_gigabyte_page(0xffff_ffff_c000_0000, 0xc000_0000);
+    r
   }
 
   fn directory(&self) -> PageFrame {
@@ -120,11 +153,17 @@ impl PageTableTrait for Riscv64PageTable {
     let mut l1e = directory.get_entry(va.l1x());
     if !l1e.valid() {
       l1e = alloc_page_table();
+      if va <= CONFIG_READ_ONLY_LEVEL_1_PAGE_TABLE_BTM {
+        self.map(CONFIG_READ_ONLY_LEVEL_2_PAGE_TABLE_BTM + va.l1x() * PAGE_SIZE, pte2pa(l1e.to_usize()), EntryAttribute::user_readonly());
+      }
       directory.set_entry(va.l1x(), l1e);
     }
     let mut l2e = l1e.get_entry(va.l2x());
     if !l2e.valid() {
       l2e = alloc_page_table();
+      if va <= CONFIG_READ_ONLY_LEVEL_1_PAGE_TABLE_BTM {
+        self.map(CONFIG_READ_ONLY_LEVEL_3_PAGE_TABLE_BTM + va.l1x() * PAGE_SIZE * 512 + va.l2x() * PAGE_SIZE, pte2pa(l2e.to_usize()), EntryAttribute::user_readonly());
+      }
       l1e.set_entry(va.l2x(), l2e);
     }
     l2e.set_entry(va.l3x(), Riscv64PageTableEntry::from(Entry::new(attr, pa)));
@@ -188,15 +227,15 @@ impl PageTableTrait for Riscv64PageTable {
     }
   }
 
-  fn recursive_map(&self, va: usize) {
-    // TODO: workaround needed
+  fn recursive_map(&self, _va: usize) {
+    self.map(CONFIG_READ_ONLY_LEVEL_1_PAGE_TABLE_BTM, self.directory.pa(), EntryAttribute::user_readonly());
   }
 
   fn destroy(&self) {
     let directory = Riscv64PageTableEntry(pa2pte(self.directory.pa()) as u64);
     for l1x in 0..(PAGE_SIZE / MACHINE_SIZE) {
       let l1e = directory.get_entry(l1x);
-      if !l1e.valid() {
+      if !l1e.valid() || l1e.is_gigabyte_page() {
         continue;
       }
       for l2x in 0..(PAGE_SIZE / MACHINE_SIZE) {

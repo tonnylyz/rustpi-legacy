@@ -50,17 +50,6 @@ impl crate::arch::ArchTrait for Riscv64Arch {
 
   fn set_user_page_table(pt: PageTable, asid: AddressSpaceId) {
     unsafe {
-      let directory = pt.directory().kva() as *mut [usize; 512];
-      // TODO: fix this hard coded mapping
-      (*directory)[508] = ((0x00000000 >> 12) << 10) | 0xcf;
-      (*directory)[509] = ((0x40000000 >> 12) << 10) | 0xcf;
-      (*directory)[510] = ((0x80000000 >> 12) << 10) | 0xcf;
-      (*directory)[511] = ((0xc0000000 >> 12) << 10) | 0xcf;
-      //for i in 0..512 {
-      //  if (*directory)[i] != 0 {
-      //    println!("{}:{:016x}", i, (*directory)[i]);
-      //  }
-      //}
       SATP.write(SATP::MODE::Sv39 + SATP::ASID.val(asid as u64) + SATP::PPN.val((pt.directory().pa() >> PAGE_SHIFT) as u64));
       riscv::barrier::sfence_vma_all();
     }

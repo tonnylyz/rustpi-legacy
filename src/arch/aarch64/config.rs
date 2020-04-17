@@ -14,30 +14,30 @@ const KVA2PA: usize = 0xFFFF_FFFF;
 // helper function
 #[inline(always)]
 pub fn pa2kva(pa: usize) -> usize {
-  pa | PA2KVA
+    pa | PA2KVA
 }
 
 #[inline(always)]
 pub fn kva2pa(kva: usize) -> usize {
-  kva & KVA2PA
+    kva & KVA2PA
 }
 
 #[inline(always)]
 pub fn pte2pa(pte: usize) -> usize {
-  pte & PTE2PA
+    pte & PTE2PA
 }
 
 #[inline(always)]
 pub fn pa2pte(pa: usize) -> usize {
-  pa
+    pa
 }
 
 #[inline(always)]
 pub fn round_up(addr: usize, n: usize) -> usize {
-  (addr + n - 1) & !(n - 1)
+    (addr + n - 1) & !(n - 1)
 }
 
 #[inline(always)]
 pub fn round_down(addr: usize, n: usize) -> usize {
-  addr & !(n - 1)
+    addr & !(n - 1)
 }

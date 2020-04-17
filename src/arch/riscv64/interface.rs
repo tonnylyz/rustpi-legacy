@@ -23,85 +23,85 @@ static mut PROCESS: Option<Process> = None;
 static mut SCHEDULER: RoundRobinScheduler = RoundRobinScheduler::new();
 
 impl crate::arch::ArchTrait for Riscv64Arch {
-  fn exception_init() {
-    super::exception::init();
-  }
-
-  fn start_first_process() -> ! {
-    use core::intrinsics::size_of;
-    extern {
-      fn pop_context_first(ctx: usize) -> !;
+    fn exception_init() {
+        super::exception::init();
     }
-    unsafe {
-      let context = (*crate::arch::Arch::running_process().unwrap().pcb()).context.unwrap();
-      pop_context_first(&context as *const ContextFrame as usize)
+
+    fn start_first_process() -> ! {
+        use core::intrinsics::size_of;
+        extern "C" {
+            fn pop_context_first(ctx: usize) -> !;
+        }
+        unsafe {
+            let context = (*crate::arch::Arch::running_process().unwrap().pcb())
+                .context
+                .unwrap();
+            pop_context_first(&context as *const ContextFrame as usize)
+        }
     }
-  }
 
-  fn kernel_page_table() -> PageTable {
-    let ppn = SATP.read(SATP::PPN) as usize;
-    PageTable::new(PageFrame::new(ppn << PAGE_SHIFT))
-  }
-
-  fn user_page_table() -> PageTable {
-    // Note user and kernel share page directory
-    Self::kernel_page_table()
-  }
-
-  fn set_user_page_table(pt: PageTable, asid: AddressSpaceId) {
-    unsafe {
-      SATP.write(SATP::MODE::Sv39 + SATP::ASID.val(asid as u64) + SATP::PPN.val((pt.directory().pa() >> PAGE_SHIFT) as u64));
-      riscv::barrier::sfence_vma_all();
+    fn kernel_page_table() -> PageTable {
+        let ppn = SATP.read(SATP::PPN) as usize;
+        PageTable::new(PageFrame::new(ppn << PAGE_SHIFT))
     }
-  }
 
-  fn invalidate_tlb() {
-    riscv::barrier::sfence_vma_all();
-  }
-
-  fn wait_for_event() {
-    riscv::asm::wfi();
-  }
-
-  fn nop() {
-    riscv::asm::nop();
-  }
-
-  fn fault_address() -> usize {
-    STVAL.get() as usize
-  }
-
-  fn core_id() -> usize {
-    0
-  }
-
-  fn context() -> *mut ContextFrame {
-    unsafe {
-      CONTEXT.unwrap() as *mut ContextFrame
+    fn user_page_table() -> PageTable {
+        // Note user and kernel share page directory
+        Self::kernel_page_table()
     }
-  }
 
-  fn has_context() -> bool {
-    unsafe {
-      CONTEXT.is_some()
+    fn set_user_page_table(pt: PageTable, asid: AddressSpaceId) {
+        unsafe {
+            SATP.write(
+                SATP::MODE::Sv39
+                    + SATP::ASID.val(asid as u64)
+                    + SATP::PPN.val((pt.directory().pa() >> PAGE_SHIFT) as u64),
+            );
+            riscv::barrier::sfence_vma_all();
+        }
     }
-  }
 
-  fn running_process() -> Option<Process> {
-    unsafe {
-      PROCESS
+    fn invalidate_tlb() {
+        riscv::barrier::sfence_vma_all();
     }
-  }
 
-  fn set_running_process(p: Option<Process>) {
-    unsafe {
-      PROCESS = p;
+    fn wait_for_event() {
+        riscv::asm::wfi();
     }
-  }
 
-  fn schedule() {
-    unsafe {
-      SCHEDULER.schedule();
+    fn nop() {
+        riscv::asm::nop();
     }
-  }
+
+    fn fault_address() -> usize {
+        STVAL.get() as usize
+    }
+
+    fn core_id() -> usize {
+        0
+    }
+
+    fn context() -> *mut ContextFrame {
+        unsafe { CONTEXT.unwrap() as *mut ContextFrame }
+    }
+
+    fn has_context() -> bool {
+        unsafe { CONTEXT.is_some() }
+    }
+
+    fn running_process() -> Option<Process> {
+        unsafe { PROCESS }
+    }
+
+    fn set_running_process(p: Option<Process>) {
+        unsafe {
+            PROCESS = p;
+        }
+    }
+
+    fn schedule() {
+        unsafe {
+            SCHEDULER.schedule();
+        }
+    }
 }

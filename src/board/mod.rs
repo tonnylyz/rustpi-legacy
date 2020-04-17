@@ -9,6 +9,6 @@ pub use self::riscv::*;
 
 pub use self::traits::*;
 
-mod rpi3;
 mod riscv;
+mod rpi3;
 mod traits;

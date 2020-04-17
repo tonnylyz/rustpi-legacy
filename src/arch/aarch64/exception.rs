@@ -17,17 +17,17 @@ global_asm!(include_str!("exception.S"));
 
 #[no_mangle]
 unsafe extern "C" fn current_el0_synchronous() {
-  panic!("current_el0_synchronous");
+    panic!("current_el0_synchronous");
 }
 
 #[no_mangle]
 unsafe extern "C" fn current_el0_irq() {
-  panic!("current_el0_irq");
+    panic!("current_el0_irq");
 }
 
 #[no_mangle]
 unsafe extern "C" fn current_el0_serror() {
-  panic!("current_el0_serror");
+    panic!("current_el0_serror");
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -37,17 +37,20 @@ unsafe extern "C" fn current_el0_serror() {
 /// Asynchronous exception taken from the current EL, using SP of the current EL.
 #[no_mangle]
 unsafe extern "C" fn current_elx_synchronous() {
-  panic!("current_elx_synchronous {:016x}", cortex_a::regs::FAR_EL1.get());
+    panic!(
+        "current_elx_synchronous {:016x}",
+        cortex_a::regs::FAR_EL1.get()
+    );
 }
 
 #[no_mangle]
 unsafe extern "C" fn current_elx_irq() {
-  panic!("current_elx_irq");
+    panic!("current_elx_irq");
 }
 
 #[no_mangle]
 unsafe extern "C" fn current_elx_serror() {
-  panic!("current_elx_serror");
+    panic!("current_elx_serror");
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -56,46 +59,48 @@ unsafe extern "C" fn current_elx_serror() {
 
 #[no_mangle]
 unsafe extern "C" fn lower_aarch64_synchronous(ctx: usize) {
-  use crate::lib::isr::*;
-  let core_id = crate::arch::Arch::core_id();
-  CORES[core_id].context = ctx;
-  if ESR_EL1.matches_all(ESR_EL1::EC::SVC64) {
-    Isr::system_call();
-  } else if ESR_EL1.matches_all(ESR_EL1::EC::InstrAbortLowerEL) | ESR_EL1.matches_all(ESR_EL1::EC::DataAbortLowerEL) {
-    Isr::page_fault();
-  } else {
-    let ec = ESR_EL1.read(ESR_EL1::EC);
-    println!("lower_aarch64_synchronous: ec {:06b}", ec);
-    Isr::default();
-  }
-  CORES[core_id].context = 0;
+    use crate::lib::isr::*;
+    let core_id = crate::arch::Arch::core_id();
+    CORES[core_id].context = ctx;
+    if ESR_EL1.matches_all(ESR_EL1::EC::SVC64) {
+        Isr::system_call();
+    } else if ESR_EL1.matches_all(ESR_EL1::EC::InstrAbortLowerEL)
+        | ESR_EL1.matches_all(ESR_EL1::EC::DataAbortLowerEL)
+    {
+        Isr::page_fault();
+    } else {
+        let ec = ESR_EL1.read(ESR_EL1::EC);
+        println!("lower_aarch64_synchronous: ec {:06b}", ec);
+        Isr::default();
+    }
+    CORES[core_id].context = 0;
 }
 
 #[no_mangle]
 unsafe extern "C" fn lower_aarch64_irq(ctx: usize) {
-  use crate::lib::isr::*;
-  let core_id = crate::arch::Arch::core_id();
-  CORES[core_id].context = ctx;
-  Isr::interrupt_request();
-  CORES[core_id].context = 0;
+    use crate::lib::isr::*;
+    let core_id = crate::arch::Arch::core_id();
+    CORES[core_id].context = ctx;
+    Isr::interrupt_request();
+    CORES[core_id].context = 0;
 }
 
 #[no_mangle]
 unsafe extern "C" fn lower_aarch64_serror(ctx: usize) {
-  use crate::lib::isr::*;
-  let core_id = crate::arch::Arch::core_id();
-  CORES[core_id].context = ctx;
-  Isr::default();
-  CORES[core_id].context = 0;
+    use crate::lib::isr::*;
+    let core_id = crate::arch::Arch::core_id();
+    CORES[core_id].context = ctx;
+    Isr::default();
+    CORES[core_id].context = 0;
 }
 
 pub fn init() {
-  extern "C" {
-    fn vectors();
-  }
-  unsafe {
-    let addr: u64 = vectors as usize as u64;
-    VBAR_EL1.set(addr);
-    barrier::isb(barrier::SY);
-  }
+    extern "C" {
+        fn vectors();
+    }
+    unsafe {
+        let addr: u64 = vectors as usize as u64;
+        VBAR_EL1.set(addr);
+        barrier::isb(barrier::SY);
+    }
 }

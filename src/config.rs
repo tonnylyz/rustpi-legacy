@@ -8,18 +8,18 @@ pub const CONFIG_NON_PAGED_MEMORY_SIZE: usize = 0xf00_0000;
 
 // helper functions
 pub fn paged_range() -> Range<usize> {
-  extern "C" {
-    // Note: link-time label, see kernel.aarch64.lds
-    fn KERNEL_END();
-  }
-  let kernel_end = round_up(kva2pa(KERNEL_END as usize), PAGE_SIZE);
-  let normal_range = crate::board::Board::normal_memory_range();
-  kernel_end..(normal_range.end - CONFIG_NON_PAGED_MEMORY_SIZE)
+    extern "C" {
+        // Note: link-time label, see kernel.aarch64.lds
+        fn KERNEL_END();
+    }
+    let kernel_end = round_up(kva2pa(KERNEL_END as usize), PAGE_SIZE);
+    let normal_range = crate::board::Board::normal_memory_range();
+    kernel_end..(normal_range.end - CONFIG_NON_PAGED_MEMORY_SIZE)
 }
 
 pub fn heap_range() -> Range<usize> {
-  let normal_range = crate::board::Board::normal_memory_range();
-  (normal_range.end - CONFIG_NON_PAGED_MEMORY_SIZE)..normal_range.end
+    let normal_range = crate::board::Board::normal_memory_range();
+    (normal_range.end - CONFIG_NON_PAGED_MEMORY_SIZE)..normal_range.end
 }
 
 // Process

@@ -12,6 +12,9 @@ buddy_system_allocator = "0.3.9"
 spin = "0.5.2"
 xmas-elf = "0.7.0"
 
+[target.'cfg(target_arch = "x86_64")'.dependencies]
+riscv = { git = "https://github.com/tonnylyz/riscv" }
+
 [target.'cfg(target_arch = "aarch64")'.dependencies]
 cortex-a = { git = "https://github.com/tonnylyz/cortex-a"}
 

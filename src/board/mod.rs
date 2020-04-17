@@ -1,3 +1,6 @@
+#[cfg(target_arch = "x86_64")]
+pub use self::riscv::*;
+
 #[cfg(target_arch = "aarch64")]
 pub use self::rpi3::*;
 

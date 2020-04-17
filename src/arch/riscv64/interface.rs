@@ -34,7 +34,6 @@ impl crate::arch::ArchTrait for Riscv64Arch {
     }
     unsafe {
       let context = (*crate::arch::Arch::running_process().unwrap().pcb()).context.unwrap();
-      //sie::set_stimer();
       pop_context_first(&context as *const ContextFrame as usize)
     }
   }

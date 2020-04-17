@@ -1,6 +1,6 @@
 use crate::arch::*;
 use crate::config::*;
-use crate::lib::page_table::{Entry, PageTableEntryAttrTrait, PageTableTrait};
+use crate::lib::page_table::{Entry, PageTableEntryAttrTrait, PageTableTrait, EntryAttribute};
 use crate::lib::process::{Pid, Process};
 use crate::mm::PageFrame;
 
@@ -176,6 +176,19 @@ impl SystemCallTrait for SystemCall {
       let child = process_pool::alloc(Some(p), 0)?;
       let mut ctx = (*crate::arch::Arch::context()).clone();
       ctx.set_argument(0);
+      if cfg!(target_arch = "riscv64") {
+        ctx.set_exception_pc(ctx.exception_pc() + 4);
+        let pt = (*p.pcb()).page_table.unwrap();
+        let c_pt = (*child.pcb()).page_table.unwrap();
+        if let Some(pte) = pt.lookup_page(ctx.stack_pointer()) {
+          let frame = crate::mm::page_pool::try_alloc()?;
+          core::intrinsics::volatile_copy_memory(frame.kva() as *mut u8, pa2kva(pte.pa()) as *const u8, PAGE_SIZE);
+          c_pt.insert_page(ctx.stack_pointer(), frame, EntryAttribute::user_default());
+        } else {
+          println!("riscv: stack pointer page fault");
+        }
+      }
+
       (*child.pcb()).context = Some(ctx);
       (*child.pcb()).status = crate::lib::process::Status::PsNotRunnable;
       Ok(child.pid())

@@ -81,7 +81,7 @@ pub fn main() -> ! {
     #[cfg(target_arch = "aarch64")]
       lib::process::Process::create(&lib::user_image::_binary_user_aarch64_elf_start, 0);
     #[cfg(target_arch = "riscv64")]
-      lib::process::Process::create(&lib::user_image::_binary_user_riscv64_elf_start, 'a' as u8 as usize);
+      lib::process::Process::create(&lib::user_image::_binary_user_riscv64_elf_start, 0);
   }
   arch::Arch::exception_init();
   driver::timer::init(core_id);

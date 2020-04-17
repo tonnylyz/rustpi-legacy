@@ -122,14 +122,14 @@ impl Process {
       let page_table = PageTable::new(frame);
       if cfg!(target_arch = "aarch64") {
         page_table.recursive_map(CONFIG_RECURSIVE_PAGE_TABLE_BTM);
-        for i in 0..(CONFIG_PROCESS_IPC_SIZE * CONFIG_PROCESS_NUMBER / PAGE_SIZE) {
-          let va = CONFIG_USER_IPC_LIST_BTM + i * PAGE_SIZE;
-          let pa = kva2pa(&IPC_LIST[i * (PAGE_SIZE / CONFIG_PROCESS_IPC_SIZE)] as *const Ipc as usize);
-          page_table.map(va, pa, EntryAttribute::user_readonly());
-        }
       } else {
-        // TODO: recursivemap for riscv64
-        // TODO: ipc map for riscv64
+        // Note: we manually map every level page table itself to a specific address.
+        page_table.recursive_map(0);
+      }
+      for i in 0..(CONFIG_PROCESS_IPC_SIZE * CONFIG_PROCESS_NUMBER / PAGE_SIZE) {
+        let va = CONFIG_USER_IPC_LIST_BTM + i * PAGE_SIZE;
+        let pa = kva2pa(&IPC_LIST[i * (PAGE_SIZE / CONFIG_PROCESS_IPC_SIZE)] as *const Ipc as usize);
+        page_table.map(va, pa, EntryAttribute::user_readonly());
       }
       (*self.pcb()).page_table = Some(page_table);
     }

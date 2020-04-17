@@ -36,7 +36,7 @@ impl Default for Riscv64ContextFrame {
       // an SRET instruction is executed, SIE is set to SPIE, then SPIE is set to 1.
       Riscv64ContextFrame {
         gpr: [0xdeadbeef_deadbeef; 32],
-        sstatus: sstatus | (SSTATUS::SPP::User + SSTATUS::SPIE.val(1)).value,
+        sstatus: (SSTATUS::SD.val(1) + SSTATUS::FS.val(0b11) + SSTATUS::SPP::User + SSTATUS::SPIE.val(1) + SSTATUS::SIE.val(0)).value,
         sepc: 0xdeadbeef_deadbeef,
       }
     }

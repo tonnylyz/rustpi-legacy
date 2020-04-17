@@ -1,2 +1,5 @@
 /target
 **/*.rs.bk
+rustpi.*.img
+*.gdb
+/.idea

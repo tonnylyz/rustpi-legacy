@@ -9,18 +9,20 @@ user:
 	make -C user
 
 aarch64: user
-	cargo build --target target.aarch64.json -Zbuild-std=core,alloc --release
-	${AARCH64_CROSS}objcopy target/target.aarch64/release/rustpi -O binary rustpi.aarch64.img
+	cargo build --target build/aarch64/target.aarch64.json -Zbuild-std=core,alloc --release
+	${AARCH64_CROSS}objcopy target/target.aarch64/release/rustpi -O binary build/aarch64/target/rustpi.aarch64.img
 
 riscv64: user
-	cargo build --target target.riscv64.json -Zbuild-std=core,alloc --release
-	${RISCV64_CROSS}objcopy target/target.riscv64/release/rustpi -O binary rustpi.riscv64.img
+	cargo build --target build/riscv64/target.riscv64.json -Zbuild-std=core,alloc --release
+	${RISCV64_CROSS}objcopy target/target.riscv64/release/rustpi -O binary build/riscv64/target/rustpi.riscv64.img
 
 aarch64-emu: aarch64
-	qemu-system-aarch64 -M raspi3 -kernel rustpi.aarch64.img -serial null -serial stdio -display none
+	qemu-system-aarch64 -M raspi3 -kernel build/aarch64/target/rustpi.aarch64.img -serial null -serial stdio -display none
 
 riscv64-emu: riscv64
-	qemu-system-riscv64 -M virt -m 1024 -bios default -device loader,file=rustpi.riscv64.img,addr=0x80200000 -serial stdio -display none
+	qemu-system-riscv64 -M virt -m 1024 -bios default -device loader,file=./build/riscv64/target/rustpi.riscv64.img,addr=0x80200000 -serial stdio -display none
 
 clean:
 	cargo clean
+	rm -rf /build/riscv64/target/*
+	rm -rf /build/aarch64/target/*

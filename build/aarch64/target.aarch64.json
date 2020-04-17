@@ -14,7 +14,7 @@
   "linker-flavor": "ld.lld",
   "pre-link-args": {
     "ld.lld": [
-      "-Tkernel.aarch64.lds",
+      "-Tbuild/aarch64/kernel.aarch64.lds",
       "-e_start"
     ]
   },

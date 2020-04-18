@@ -1,6 +1,7 @@
-use crate::arch::*;
-use crate::driver::mmio::write_byte;
-use crate::lib::page_table::{EntryAttribute, PageTableEntryAttrTrait, PageTableTrait};
+use crate::{
+  driver::mmio::write_byte,
+  lib::page_table::{EntryAttribute, PageTableEntryAttrTrait, PageTableTrait},
+};
 
 const TIMER_DEFAULT_COUNT: u32 = 10000000;
 
@@ -12,7 +13,7 @@ pub fn next() {
 
 pub fn init(core_id: usize) {
   if core_id == 0 {
-    let page_table = crate::arch::Arch::kernel_page_table();
+    let page_table = crate::arch::PageTable::kernel_page_table();
     page_table.map(0x4000_0000, 0x4000_0000, EntryAttribute::kernel_device());
   }
   unsafe { write_byte(0x4000_0040 + core_id * 4, 0b1111); }

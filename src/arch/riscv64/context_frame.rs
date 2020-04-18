@@ -1,4 +1,5 @@
 use core::fmt::Formatter;
+
 use riscv::regs::*;
 
 #[repr(C)]
@@ -25,20 +26,18 @@ impl core::fmt::Display for Riscv64ContextFrame {
 
 impl Default for Riscv64ContextFrame {
   fn default() -> Self {
-    unsafe {
-      let mut sstatus = SSTATUS.get();
-      // Note: The SIE bit enables or disables all interrupts in supervisor mode. When SIE is clear, interrupts
-      // are not taken while in supervisor mode. When the hart is running in user-mode, the value in
-      // SIE is ignored, and supervisor-level interrupts are enabled. The supervisor can disable individual
-      // interrupt sources using the sie CSR.
-      // Note: The SPIE bit indicates whether supervisor interrupts were enabled prior to trapping into supervisor
-      // mode. When a trap is taken into supervisor mode, SPIE is set to SIE, and SIE is set to 0. When
-      // an SRET instruction is executed, SIE is set to SPIE, then SPIE is set to 1.
-      Riscv64ContextFrame {
-        gpr: [0xdeadbeef_deadbeef; 32],
-        sstatus: (SSTATUS::SD.val(1) + SSTATUS::FS.val(0b11) + SSTATUS::SPP::User + SSTATUS::SPIE.val(1) + SSTATUS::SIE.val(0)).value,
-        sepc: 0xdeadbeef_deadbeef,
-      }
+    let sstatus = SSTATUS.get();
+    // Note: The SIE bit enables or disables all interrupts in supervisor mode. When SIE is clear, interrupts
+    // are not taken while in supervisor mode. When the hart is running in user-mode, the value in
+    // SIE is ignored, and supervisor-level interrupts are enabled. The supervisor can disable individual
+    // interrupt sources using the sie CSR.
+    // Note: The SPIE bit indicates whether supervisor interrupts were enabled prior to trapping into supervisor
+    // mode. When a trap is taken into supervisor mode, SPIE is set to SIE, and SIE is set to 0. When
+    // an SRET instruction is executed, SIE is set to SPIE, then SPIE is set to 1.
+    Riscv64ContextFrame {
+      gpr: [0xdeadbeef_deadbeef; 32],
+      sstatus: sstatus | (SSTATUS::SPP::User + SSTATUS::SPIE.val(1) + SSTATUS::SIE.val(0)).value,
+      sepc: 0xdeadbeef_deadbeef,
     }
   }
 }

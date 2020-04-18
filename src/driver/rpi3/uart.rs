@@ -1,5 +1,4 @@
 use crate::arch::{Arch, ArchTrait};
-
 use crate::driver::mmio::{read_word, write_word};
 
 const GPFSEL1: usize = 0xFFFFFF8000000000 + 0x3F200004;

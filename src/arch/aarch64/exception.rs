@@ -6,8 +6,7 @@
 
 use cortex_a::{barrier, regs::*};
 
-use crate::arch::aarch64::core::CORES;
-use crate::arch::ArchTrait;
+use crate::arch::{ContextFrame, CoreTrait};
 
 global_asm!(include_str!("exception.S"));
 
@@ -57,8 +56,8 @@ unsafe extern "C" fn current_elx_serror() {
 #[no_mangle]
 unsafe extern "C" fn lower_aarch64_synchronous(ctx: usize) {
   use crate::lib::isr::*;
-  let core_id = crate::arch::Arch::core_id();
-  CORES[core_id].context = ctx;
+  let core = crate::arch::Core::current();
+  (*core).set_context(Some(ctx as *mut ContextFrame));
   if ESR_EL1.matches_all(ESR_EL1::EC::SVC64) {
     Isr::system_call();
   } else if ESR_EL1.matches_all(ESR_EL1::EC::InstrAbortLowerEL) | ESR_EL1.matches_all(ESR_EL1::EC::DataAbortLowerEL) {
@@ -68,25 +67,25 @@ unsafe extern "C" fn lower_aarch64_synchronous(ctx: usize) {
     println!("lower_aarch64_synchronous: ec {:06b}", ec);
     Isr::default();
   }
-  CORES[core_id].context = 0;
+  (*core).set_context(None);
 }
 
 #[no_mangle]
 unsafe extern "C" fn lower_aarch64_irq(ctx: usize) {
   use crate::lib::isr::*;
-  let core_id = crate::arch::Arch::core_id();
-  CORES[core_id].context = ctx;
+  let core = crate::arch::Core::current();
+  (*core).set_context(Some(ctx as *mut ContextFrame));
   Isr::interrupt_request();
-  CORES[core_id].context = 0;
+  (*core).set_context(None);
 }
 
 #[no_mangle]
 unsafe extern "C" fn lower_aarch64_serror(ctx: usize) {
   use crate::lib::isr::*;
-  let core_id = crate::arch::Arch::core_id();
-  CORES[core_id].context = ctx;
+  let core = crate::arch::Core::current();
+  (*core).set_context(Some(ctx as *mut ContextFrame));
   Isr::default();
-  CORES[core_id].context = 0;
+  (*core).set_context(None);
 }
 
 pub fn init() {

@@ -138,7 +138,8 @@ impl PagePool {
 
 static PAGE_POOL: Mutex<PagePool> = Mutex::new(PagePool::new());
 
-pub fn init(range: Range<usize>) {
+pub fn init() {
+  let range = super::config::paged_range();
   let mut pool = PAGE_POOL.lock();
   pool.init(range);
   drop(pool);

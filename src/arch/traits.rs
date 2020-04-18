@@ -1,5 +1,12 @@
-use crate::arch::{AddressSpaceId, ContextFrame, PageTable};
-use crate::lib::process::Process;
+use crate::{
+  arch::ContextFrame,
+  lib::process::Process,
+};
+
+pub trait Address {
+  fn pa2kva(&self) -> usize;
+  fn kva2pa(&self) -> usize;
+}
 
 pub trait ArchTrait {
   fn exception_init();
@@ -9,22 +16,22 @@ pub trait ArchTrait {
   // Require: a process has been schedule, its
   // context filled in CONTEXT_FRAME, and its
   // page table installed at low address space.
-  fn start_first_process() -> !;
-
-  fn kernel_page_table() -> PageTable;
-  fn user_page_table() -> PageTable;
-  fn set_user_page_table(pt: PageTable, asid: AddressSpaceId);
-
   fn invalidate_tlb();
   fn wait_for_event();
   fn nop();
   fn fault_address() -> usize;
   fn core_id() -> usize;
-  fn context() -> *mut ContextFrame;
-  fn has_context() -> bool;
-  fn running_process() -> Option<Process>;
-  fn set_running_process(p: Option<Process>);
-  fn schedule();
+}
+
+pub trait CoreTrait {
+  fn current() -> *mut Self;
+  fn context(&self) -> Option<*mut ContextFrame>;
+  fn set_context(&mut self, ctx: Option<*mut ContextFrame>);
+  fn install_context(&self, ctx: ContextFrame);
+  fn running_process(&self) -> Option<Process>;
+  fn set_running_process(&mut self, p: Option<Process>);
+  fn schedule(&mut self);
+  fn start_first_process(&self) -> !;
 }
 
 pub trait ContextFrameTrait: Default {
@@ -39,6 +46,13 @@ pub trait ContextFrameTrait: Default {
 }
 
 pub trait ArchPageTableEntryTrait {
-  fn new(value: usize) -> Self;
-  fn to_usize(&self) -> usize;
+  fn from_pte(value: usize) -> Self;
+  fn from_pa(pa: usize) -> Self;
+  fn to_pte(&self) -> usize;
+  fn to_pa(&self) -> usize;
+  fn to_kva(&self) -> usize;
+  fn valid(&self) -> bool;
+  fn entry(&self, index: usize) -> Self;
+  fn set_entry(&self, index: usize, value: Self);
+  fn alloc_table() -> Self;
 }

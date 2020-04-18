@@ -1,6 +1,10 @@
 use crate::board::*;
 
-use super::config::*;
+use super::interface::PAGE_SHIFT;
+use super::interface::PAGE_SIZE;
+use super::page_table::PAGE_TABLE_L1_SHIFT;
+use super::page_table::PAGE_TABLE_L2_SHIFT;
+use super::page_table::PAGE_TABLE_L3_SHIFT;
 use super::vm_descriptor::*;
 
 const PHYSICAL_ADDRESS_LIMIT_GB: usize = BOARD_PHYSICAL_ADDRESS_LIMIT >> 30;
@@ -19,7 +23,7 @@ struct TableDescriptor(u64);
 impl TableDescriptor {
   fn new(output_addr: usize) -> TableDescriptor {
     TableDescriptor((
-      TABLE_DESCRIPTOR::NEXT_LEVEL_TABLE_ADDR.val((output_addr >> PAGE_SHIFT) as u64)
+      TABLE_DESCRIPTOR::NEXT_LEVEL_TABLE_PPN.val((output_addr >> PAGE_SHIFT) as u64)
         + TABLE_DESCRIPTOR::TYPE::Table
         + TABLE_DESCRIPTOR::VALID::True).value)
   }
@@ -33,7 +37,7 @@ impl PageDescriptor {
   fn new(output_addr: usize, t: MemoryType) -> PageDescriptor {
     PageDescriptor((
       PAGE_DESCRIPTOR::PXN::False
-        + PAGE_DESCRIPTOR::OUTPUT_ADDR.val((output_addr >> PAGE_SHIFT) as u64)
+        + PAGE_DESCRIPTOR::OUTPUT_PPN.val((output_addr >> PAGE_SHIFT) as u64)
         + PAGE_DESCRIPTOR::AF::True
         + PAGE_DESCRIPTOR::AP::RW_EL1
         + PAGE_DESCRIPTOR::TYPE::Table
@@ -98,9 +102,9 @@ pub unsafe extern "C" fn init(create_table: bool) {
         KERNEL_PAGE_TABLES.lvl2[i][j] = TableDescriptor::new(output_addr);
         for k in 0..ENTRY_PER_PAGE {
           let output_addr = (i << PAGE_TABLE_L1_SHIFT) | (j << PAGE_TABLE_L2_SHIFT) | (k << PAGE_TABLE_L3_SHIFT);
-          if crate::board::Board::normal_memory_range().contains(&output_addr) {
+          if crate::board::BOARD_NORMAL_MEMORY_RANGE.contains(&output_addr) {
             KERNEL_PAGE_TABLES.lvl3[i][j][k] = PageDescriptor::new(output_addr, MemoryType::Normal);
-          } else if crate::board::Board::device_memory_range().contains(&output_addr) {
+          } else if crate::board::BOARD_DEVICE_MEMORY_RANGE.contains(&output_addr) {
             KERNEL_PAGE_TABLES.lvl3[i][j][k] = PageDescriptor::new(output_addr, MemoryType::Device);
           }
         }

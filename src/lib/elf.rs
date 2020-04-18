@@ -9,7 +9,7 @@ unsafe fn memcpy(src: &'static [u8], offset: usize, dest: PageFrame, length: usi
   }
 }
 
-// TODO: make a robuster elf loader
+// TODO: (elf loader) make a robuster elf loader
 pub unsafe fn load_elf(src: &'static [u8], page_table: PageTable) -> usize {
   use xmas_elf::*;
   if let Ok(elf) = ElfFile::new(src) {

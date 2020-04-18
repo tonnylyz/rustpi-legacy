@@ -59,7 +59,7 @@ pub static mut PCB_LIST: [ControlBlock; CONFIG_PROCESS_NUMBER] = [ControlBlock {
   exception_handler: 0,
   exception_stack_top: 0,
   lock: spin::Mutex::new(()),
-  running_at: None
+  running_at: None,
 }; CONFIG_PROCESS_NUMBER];
 
 
@@ -120,15 +120,10 @@ impl Process {
       let frame = crate::mm::page_pool::alloc();
       crate::mm::page_pool::increase_rc(frame);
       let page_table = PageTable::new(frame);
-      if cfg!(target_arch = "aarch64") {
-        page_table.recursive_map(CONFIG_RECURSIVE_PAGE_TABLE_BTM);
-      } else {
-        // Note: we manually map every level page table itself to a specific address.
-        page_table.recursive_map(0);
-      }
+      page_table.recursive_map(CONFIG_RECURSIVE_PAGE_TABLE_BTM);
       for i in 0..(CONFIG_PROCESS_IPC_SIZE * CONFIG_PROCESS_NUMBER / PAGE_SIZE) {
         let va = CONFIG_USER_IPC_LIST_BTM + i * PAGE_SIZE;
-        let pa = kva2pa(&IPC_LIST[i * (PAGE_SIZE / CONFIG_PROCESS_IPC_SIZE)] as *const Ipc as usize);
+        let pa = (&IPC_LIST[i * (PAGE_SIZE / CONFIG_PROCESS_IPC_SIZE)] as *const Ipc as usize).kva2pa();
         page_table.map(va, pa, EntryAttribute::user_readonly());
       }
       (*self.pcb()).page_table = Some(page_table);
@@ -169,10 +164,13 @@ impl Process {
 
   pub fn destroy(&self) {
     self.free();
-    if let Some(pid) = crate::arch::Arch::running_process() {
-      if pid.pid == self.pid {
-        crate::arch::Arch::set_running_process(None);
-        crate::lib::scheduler::schedule();
+    unsafe {
+      let core = Core::current();
+      if let Some(pid) = (*core).running_process() {
+        if pid.pid == self.pid {
+          (*core).set_running_process(None);
+          crate::lib::scheduler::schedule();
+        }
       }
     }
   }
@@ -181,22 +179,25 @@ impl Process {
     unsafe {
       assert!((*self.pcb()).page_table.is_some());
       assert!((*self.pcb()).context.is_some());
-      if let Some(prev) = crate::arch::Arch::running_process() {
+      let core = crate::arch::Core::current();
+      if let Some(prev) = (*core).running_process() {
         // Note: normal switch
         prev.lock();
         prev.set_running_at(None);
-        (*(prev.pcb())).context = Some(*crate::arch::Arch::context());
+        (*(prev.pcb())).context = Some(*((*core).context().unwrap()));
         prev.unlock();
-        (*crate::arch::Arch::context()) = (*self.pcb()).context.unwrap();
-      } else if crate::arch::Arch::has_context() {
-        // Note: previous process has been destroyed
-        (*crate::arch::Arch::context()) = (*self.pcb()).context.unwrap();
+        (*core).install_context((*self.pcb()).context.unwrap());
       } else {
-        // Note: this is first run
-        // Arch::start_first_process prepare the context to stack
+        if let Some(_) = (*core).context() {
+          // Note: previous process has been destroyed
+          (*core).install_context((*self.pcb()).context.unwrap());
+        } else {
+          // Note: this is first run
+          // Arch::start_first_process prepare the context to stack
+        }
       }
-      crate::arch::Arch::set_running_process(Some(self.clone()));
-      crate::arch::Arch::set_user_page_table((*self.pcb()).page_table.unwrap(), self.pid as AddressSpaceId);
+      (*core).set_running_process(Some(self.clone()));
+      crate::arch::PageTable::set_user_page_table((*self.pcb()).page_table.unwrap(), self.pid as AddressSpaceId);
       crate::arch::Arch::invalidate_tlb();
     }
   }

@@ -75,6 +75,9 @@ vectors:
     VECTOR_DISABLED
 .org 0x800
 
+.global pop_context_first
+pop_context_first:
+    mov sp, x0
 .global pop_context
 pop_context:
     ldr x0, [sp, #(31 * 8)] // spsr

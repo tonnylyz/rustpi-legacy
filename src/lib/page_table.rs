@@ -1,5 +1,7 @@
 use core::fmt::{Display, Formatter};
 
+use crate::arch::{Address, AddressSpaceId, PAGE_SHIFT};
+
 pub trait PageTableEntryAttrTrait {
   fn writable(&self) -> bool;
   fn k_executable(&self) -> bool;
@@ -147,6 +149,9 @@ impl Entry {
   pub fn pa(&self) -> usize {
     self.pa
   }
+  pub fn ppn(&self) -> usize { self.pa >> PAGE_SHIFT }
+  #[allow(dead_code)]
+  pub fn kva(&self) -> usize { self.pa.pa2kva() }
 }
 
 impl Display for Entry {
@@ -170,4 +175,9 @@ pub trait PageTableTrait {
   fn remove_page(&self, va: usize) -> Result<(), Error>;
   fn recursive_map(&self, va: usize);
   fn destroy(&self);
+
+
+  fn kernel_page_table() -> Self;
+  fn user_page_table() -> Self;
+  fn set_user_page_table(pt: Self, asid: AddressSpaceId);
 }

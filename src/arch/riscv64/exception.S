@@ -97,9 +97,3 @@ pop_context:
 
     ld x2, 2 * 8(sp)// restore user sp
     sret
-
-.global set_sbi_timer
-set_sbi_timer:
-    li x17, 0
-    ecall
-    ret

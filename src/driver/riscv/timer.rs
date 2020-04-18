@@ -1,15 +1,29 @@
 use riscv::regs::*;
 
+const SBI_SET_TIMER: usize = 0x00;
+
 const TIMER_DEFAULT_COUNT: usize = 250000;
 
-pub fn next() {
-  extern "C" {
-    fn set_sbi_timer(n: usize, c: usize);
+#[inline(always)]
+fn ecall(which: usize, arg0: usize, arg1: usize, arg2: usize) -> usize {
+  let ret: usize;
+  unsafe {
+    asm!("ecall"
+        : "={x10}" (ret)
+        : "{x10}" (arg0), "{x11}" (arg1), "{x12}" (arg2), "{x17}" (which)
+        : "memory"
+        : "volatile");
   }
-  unsafe { set_sbi_timer(0, TIMER_DEFAULT_COUNT); }
+  ret
 }
 
-pub fn init(core_id: usize) {
-  //next();
-  // TODO: timer not working now
+#[no_mangle]
+pub fn next() {
+  let time = TIME.get() as usize;
+  ecall(SBI_SET_TIMER, time + TIMER_DEFAULT_COUNT, 0, 0);
+}
+
+pub fn init(_core_id: usize) {
+  next();
+  SIE.write(SIE::STIE.val(1));
 }

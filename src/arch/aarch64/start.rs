@@ -1,6 +1,4 @@
-use crate::board::BoardTrait;
-
-use super::config::*;
+use crate::arch::Address;
 
 const CORE_MASK: u64 = 0x3;
 const BOOT_CORE_ID: u64 = 0;
@@ -20,7 +18,7 @@ unsafe extern "C" fn _start() -> ! {
         + SPSR_EL2::M::EL1h,
     );
     ELR_EL2.set(el1_start as *const () as u64);
-    SP_EL1.set(crate::board::Board::kernel_stack_top() as u64);
+    SP_EL1.set(0x0008_0000 as u64);
     asm::eret()
   } else {
     loop {
@@ -44,7 +42,7 @@ unsafe extern "C" fn el2_start() -> ! {
       + SPSR_EL2::M::EL1h,
   );
   ELR_EL2.set(el1_start as *const () as u64);
-  SP_EL1.set(crate::board::Board::kernel_stack_top_core(core_id as usize) as u64);
+  SP_EL1.set((0x0008_0000 - core_id * 0x0002_0000) as u64);
   asm::eret()
 }
 
@@ -54,11 +52,12 @@ unsafe fn el1_start() -> ! {
   use cortex_a::regs::*;
   let core_id = MPIDR_EL1.get() & CORE_MASK;
   super::mmu::init(core_id == BOOT_CORE_ID);
-  SP.set(pa2kva(crate::board::Board::kernel_stack_top_core(core_id as usize)) as u64);
-  if core_id == BOOT_CORE_ID {
-    crate::driver::mmio::write_dword(pa2kva(0xe0), el2_start as u64);
-    crate::driver::mmio::write_dword(pa2kva(0xe8), el2_start as u64);
-    crate::driver::mmio::write_dword(pa2kva(0xf0), el2_start as u64);
-  }
+  SP.set(0x0008_0000usize.pa2kva() as u64);
+  // TODO: (aarch64) bring up other cores when ready
+  //if core_id == BOOT_CORE_ID {
+  //  crate::driver::mmio::write_dword(0xe0usize.pa2kva(), el2_start as u64);
+  //  crate::driver::mmio::write_dword(0xe8usize.pa2kva(), el2_start as u64);
+  //  crate::driver::mmio::write_dword(0xf0usize.pa2kva(), el2_start as u64);
+  //}
   crate::main();
 }

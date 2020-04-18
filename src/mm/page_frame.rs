@@ -1,4 +1,4 @@
-use crate::arch::PAGE_SIZE;
+use crate::arch::{Address, PAGE_SIZE};
 
 #[derive(Clone, Copy, Debug)]
 pub struct PageFrame {
@@ -13,7 +13,7 @@ impl PageFrame {
     }
   }
   pub fn kva(&self) -> usize {
-    crate::arch::pa2kva(self.pa)
+    self.pa.pa2kva()
   }
   pub fn pa(&self) -> usize {
     self.pa

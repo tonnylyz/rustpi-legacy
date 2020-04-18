@@ -2,7 +2,7 @@ use register::*;
 
 register_bitfields! {u64,
     pub TABLE_DESCRIPTOR [
-        NEXT_LEVEL_TABLE_ADDR OFFSET(12) NUMBITS(36) [], // [47:12]
+        NEXT_LEVEL_TABLE_PPN OFFSET(12) NUMBITS(36) [], // [47:12]
         TYPE  OFFSET(1) NUMBITS(1) [
             Block = 0,
             Table = 1
@@ -33,7 +33,7 @@ register_bitfields! {u64,
             False = 0,
             True = 1
         ],
-        OUTPUT_ADDR OFFSET(12) NUMBITS(36) [], // [47:12]
+        OUTPUT_PPN OFFSET(12) NUMBITS(36) [], // [47:12]
         AF       OFFSET(10) NUMBITS(1) [
             False = 0,
             True = 1

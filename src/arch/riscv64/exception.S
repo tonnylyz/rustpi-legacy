@@ -1,6 +1,9 @@
-.macro VECTOR handler
-    csrrw sp, sscratch, sp // save user's sp into sscratch
-    addi  sp, sp, -0x110 // size of ContextFrame
+.global push_context
+push_context:
+    csrrw sp, sscratch, sp // save current sp into sscratch
+    bnez  sp, 1f // check if came from `S` mode
+    csrr  sp, sscratch // use `S` mode sp
+1:  addi  sp, sp, -0x110 // size of ContextFrame
     sd x1, 1 * 8(sp)
     //this x2 is kernel sp
     sd x3, 3 * 8(sp)
@@ -42,14 +45,9 @@
     sd s2, 33 * 8(sp)
 
     mv a0, sp
-    jal \handler
+    jal exception_entry // see exception.rs
     j pop_context
 
-.endm
-
-.global push_context
-push_context:
-    VECTOR exception_entry // see exception.rs
 
 .global pop_context_first // (*ctx on stack)
 pop_context_first:

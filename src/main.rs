@@ -64,7 +64,8 @@ fn static_check() {
 #[no_mangle]
 pub unsafe fn main() -> ! {
   clear_bss();
-  driver::uart::init();
+  board::init();
+  board::init_per_core();
   static_check();
   mm::heap::init();
   mm::page_pool::init();
@@ -81,6 +82,5 @@ pub unsafe fn main() -> ! {
   arch::Arch::exception_init();
   driver::timer::init(0);
   lib::scheduler::schedule();
-  // kernel mode -> user mode
   (*arch::Core::current()).start_first_process()
 }

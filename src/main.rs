@@ -65,10 +65,10 @@ fn static_check() {
 pub unsafe fn main() -> ! {
   clear_bss();
   board::init();
-  board::init_per_core();
   static_check();
   mm::heap::init();
   mm::page_pool::init();
+  board::init_per_core();
   lib::process_pool::init();
   // Note: `arg` is used to start different programs:
   //    0 - fktest: a `fork` test

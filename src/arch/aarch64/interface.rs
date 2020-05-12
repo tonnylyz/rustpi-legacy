@@ -40,10 +40,10 @@ impl crate::arch::ArchTrait for Aarch64Arch {
 
   fn invalidate_tlb() {
     unsafe {
-      asm!("dsb ishst");
-      asm!("tlbi vmalle1is");
-      asm!("dsb ish");
-      asm!("isb");
+      llvm_asm!("dsb ishst");
+      llvm_asm!("tlbi vmalle1is");
+      llvm_asm!("dsb ish");
+      llvm_asm!("isb");
     }
   }
 

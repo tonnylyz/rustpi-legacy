@@ -7,7 +7,7 @@
 #![feature(format_args_nl)]
 #![feature(vec_remove_item)]
 #![feature(const_in_array_repeat_expressions)]
-#![feature(asm)]
+#![feature(llvm_asm)]
 
 extern crate alloc;
 #[macro_use]

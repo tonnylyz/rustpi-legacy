@@ -1,4 +1,4 @@
-use crate::arch::*;
+use crate::arch::{PAGE_SIZE, PageTable};
 use crate::lib::page_table::{EntryAttribute, PageTableEntryAttrTrait, PageTableTrait};
 use crate::mm::PageFrame;
 

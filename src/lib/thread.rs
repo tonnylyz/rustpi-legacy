@@ -5,7 +5,7 @@ use core::borrow::BorrowMut;
 
 use spin::Mutex;
 
-use crate::arch::*;
+use crate::arch::{AddressSpaceId, ArchTrait, ContextFrame, ContextFrameTrait, CoreTrait};
 use crate::lib::bitmap::BitMap;
 use crate::lib::current_thread;
 use crate::lib::page_table::PageTableTrait;
@@ -78,8 +78,7 @@ impl Thread {
 
   pub fn context(&self) -> &mut ContextFrame {
     unsafe {
-      let tcb = self.tcb();
-      (&mut tcb.context as *mut ContextFrame).as_mut().unwrap()
+      (&mut self.tcb().context as *mut ContextFrame).as_mut().unwrap()
     }
   }
 
@@ -99,7 +98,7 @@ impl Thread {
         // Arch::start_first_process prepare the context to stack
       }
     }
-    (*core).set_running_thread(Some(self.clone()));
+    core.set_running_thread(Some(self.clone()));
     if let Some(p) = self.process() {
       println!("run process {}", self.process().unwrap().pid());
       crate::arch::PageTable::set_user_page_table(p.page_table(), p.pid() as AddressSpaceId);

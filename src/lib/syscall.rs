@@ -1,5 +1,5 @@
-use crate::arch::*;
-use crate::config::*;
+use crate::arch::{ArchPageTableEntry, ArchPageTableEntryTrait, ContextFrameTrait, CoreTrait, PAGE_SIZE};
+use crate::config::CONFIG_USER_LIMIT;
 use crate::lib::{current_process, current_thread, round_down};
 use crate::lib::page_table::{Entry, PageTableEntryAttrTrait, PageTableTrait};
 use crate::lib::process::{Pid, Process};
@@ -62,14 +62,13 @@ pub trait SystemCallTrait {
 pub struct SystemCall;
 
 fn lookup_pid(pid: u16, check_parent: bool) -> Result<Process, Error> {
-  use crate::lib::process::*;
   if pid == 0 {
     match current_process() {
       None => { Err(InternalError) }
       Some(p) => { Ok(p) }
     }
   } else {
-    if let Some(p) = lookup(pid) {
+    if let Some(p) = crate::lib::process::lookup(pid) {
       if check_parent {
         if let Some(parent) = p.parent() {
           match current_process() {
@@ -178,11 +177,10 @@ impl SystemCallTrait for SystemCall {
   }
 
   fn process_alloc() -> Result<Pid, Error> {
-    use crate::lib::*;
     let t = current_thread().unwrap();
     let p = t.process().unwrap();
-    let child = process::alloc(Some(p));
-    let mut ctx = current_core().context();
+    let child = crate::lib::process::alloc(Some(p));
+    let mut ctx = crate::lib::current_core().context();
     ctx.set_syscall_return_value(0);
     let child_thread = crate::lib::thread::alloc_user(0, 0, 0, child);
     *child_thread.context() = ctx;

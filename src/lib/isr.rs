@@ -1,10 +1,11 @@
 use core::intrinsics::size_of;
 
-use crate::arch::*;
-use crate::config::*;
+use crate::arch::{Arch, ArchTrait, ContextFrame, ContextFrameTrait, CoreTrait, PAGE_SIZE};
+use crate::config::CONFIG_USER_LIMIT;
 use crate::lib::{current_core, current_process, current_thread, round_down};
 use crate::lib::page_table::PageTableTrait;
 use crate::lib::process::Pid;
+use crate::lib::syscall::{SystemCall, SystemCallTrait};
 use crate::mm::PageFrame;
 
 pub trait InterruptServiceRoutine {
@@ -51,8 +52,8 @@ impl core::convert::From<()> for SystemCallResult {
   }
 }
 
-impl<T> core::convert::From<Result<T, super::syscall::Error>> for SystemCallResult where T: SystemCallResultOk {
-  fn from(sce: Result<T, super::syscall::Error>) -> Self {
+impl<T> core::convert::From<Result<T, crate::lib::syscall::Error>> for SystemCallResult where T: SystemCallResultOk {
+  fn from(sce: Result<T, crate::lib::syscall::Error>) -> Self {
     SystemCallResult::R(
       match sce {
         Ok(t) => { Some(t.to_isize()) }
@@ -64,7 +65,6 @@ impl<T> core::convert::From<Result<T, super::syscall::Error>> for SystemCallResu
 
 impl InterruptServiceRoutine for Isr {
   fn system_call() {
-    use crate::lib::syscall::*;
     let ctx = current_core().context_mut();
     let arg = |i: usize| { ctx.syscall_argument(i) };
     let scr = match ctx.syscall_number() {
@@ -99,7 +99,7 @@ impl InterruptServiceRoutine for Isr {
         SystemCall::process_alloc().into()
       }
       10 => {
-        use crate::lib::thread::Status::*;
+        use crate::lib::thread::Status::{TsNotRunnable, TsRunnable};
         match arg(1) {
           1 => { SystemCall::thread_set_status(arg(0) as u16, TsRunnable).into() }
           2 => { SystemCall::thread_set_status(arg(0) as u16, TsNotRunnable).into() }

@@ -6,8 +6,8 @@ use core::fmt::{Display, Formatter};
 
 use spin::Mutex;
 
-use crate::arch::*;
-use crate::config::*;
+use crate::arch::{Address, CoreTrait, PAGE_SIZE, PageTable};
+use crate::config::{CONFIG_PROCESS_IPC_SIZE, CONFIG_PROCESS_NUMBER, CONFIG_USER_IPC_LIST_BTM, CONFIG_USER_STACK_TOP};
 use crate::lib::bitmap::BitMap;
 use crate::lib::current_thread;
 use crate::lib::page_table::{EntryAttribute, PageTableEntryAttrTrait, PageTableTrait};
@@ -113,7 +113,7 @@ impl Process {
     self.pcb().page_table.destroy();
     let frame = self.pcb().page_table.directory();
     crate::mm::page_pool::decrease_rc(frame);
-    super::process::free(self);
+    crate::lib::process::free(self);
   }
 
   pub fn destroy(&self) {
@@ -143,7 +143,7 @@ fn make_user_page_table() -> PageTable {
   let frame = crate::mm::page_pool::alloc();
   crate::mm::page_pool::increase_rc(frame);
   let page_table = PageTable::new(frame);
-  page_table.recursive_map(CONFIG_RECURSIVE_PAGE_TABLE_BTM);
+  page_table.recursive_map(crate::config::CONFIG_RECURSIVE_PAGE_TABLE_BTM);
   for i in 0..(CONFIG_PROCESS_IPC_SIZE * CONFIG_PROCESS_NUMBER / PAGE_SIZE) {
     unsafe {
       let va = CONFIG_USER_IPC_LIST_BTM + i * PAGE_SIZE;
@@ -239,8 +239,8 @@ pub fn lookup(pid: Pid) -> Option<Process> {
 pub fn create(elf: &'static [u8], arg: usize) {
   let p = alloc(None);
   unsafe {
-    let page_table = (*p.pcb()).page_table;
-    let pc = super::elf::load_elf(elf, page_table);
+    let page_table = p.page_table();
+    let pc = crate::lib::elf::load_elf(elf, page_table);
     let sp = CONFIG_USER_STACK_TOP;
     match page_table.insert_page(sp - PAGE_SIZE, crate::mm::page_pool::alloc(), EntryAttribute::user_default()) {
       Ok(_) => {}

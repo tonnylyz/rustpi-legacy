@@ -1,6 +1,6 @@
 use core::fmt;
 
-use crate::arch::*;
+use crate::arch::{Arch, ArchTrait};
 
 pub struct Writer;
 

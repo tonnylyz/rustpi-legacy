@@ -81,10 +81,10 @@ impl core::convert::From<usize> for Exception {
 unsafe extern "C" fn exception_entry(ctx: usize) {
   let from_kernel = SSTATUS.is_set(SSTATUS::SPP);
   if from_kernel {
-    panic!("kernel exception");
+    //panic!("kernel exception");
   }
-  let core = crate::arch::Core::current();
-  (*core).set_context(Some(ctx as *mut ContextFrame));
+  let core = crate::arch::common::core::current();
+  core.set_context(ctx as *mut ContextFrame);
   let cause = SCAUSE.get();
   let irq = (cause >> 63) != 0;
   let code = (cause & 0xf) as usize;
@@ -115,8 +115,8 @@ unsafe extern "C" fn exception_entry(ctx: usize) {
       Exception::EnvironmentCallFromUserMode => {
         // Note: we need to set epc to next instruction before doing system call
         //       pay attention to yield and process_alloc
-        let pc = (*(*core).context().unwrap()).exception_pc();
-        (*(*core).context().unwrap()).set_exception_pc(pc + 4);
+        let pc = core.context_mut().exception_pc();
+        core.context_mut().set_exception_pc(pc + 4);
         Isr::system_call();
       }
       Exception::InstructionPageFault => { Isr::page_fault() }
@@ -125,7 +125,7 @@ unsafe extern "C" fn exception_entry(ctx: usize) {
       _ => { panic!("Exception::Unknown") }
     }
   }
-  (*core).set_context(None);
+  core.clear_context();
 }
 
 pub fn init() {

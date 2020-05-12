@@ -1,3 +1,6 @@
+use crate::arch::ArchTrait;
+use crate::driver::mmio::*;
+
 // platform level interrupt controller
 const PLIC_BASE_ADDR: usize = 0xffff_ffff_0000_0000 + 0x0c00_0000;
 const PLIC_PENDING_ADDR: usize = PLIC_BASE_ADDR + 0x1000;
@@ -14,9 +17,6 @@ const PLIC_SUPERVISOR_CLAIM_ADDR: usize = PLIC_BASE_ADDR + 0x201004;
 
 const PLIC_IRQ_VIRTIO: usize = 1;
 const PLIC_IRQ_UART: usize = 10;
-
-use crate::driver::mmio::*;
-use crate::arch::ArchTrait;
 
 pub fn init() {
   unsafe {

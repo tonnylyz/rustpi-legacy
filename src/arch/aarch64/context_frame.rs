@@ -24,19 +24,21 @@ impl core::fmt::Display for Aarch64ContextFrame {
   }
 }
 
-impl Default for Aarch64ContextFrame {
-  fn default() -> Self {
-    use cortex_a::regs::*;
-    Aarch64ContextFrame {
-      gpr: [0; 31],
-      spsr: (SPSR_EL1::M::EL0t + SPSR_EL1::I::Unmasked + SPSR_EL1::F::Masked).value as u64,
-      elr: 0xdeadbeef,
-      sp: 0xdeadbeef,
-    }
-  }
-}
-
 impl crate::arch::traits::ContextFrameTrait for Aarch64ContextFrame {
+  fn new(pc: usize, sp: usize, arg: usize, privileged: bool) -> Self {
+    use cortex_a::regs::*;
+    let mut r = Aarch64ContextFrame {
+      gpr: [0; 31],
+      spsr: (
+        if privileged { SPSR_EL1::M::EL1t } else { SPSR_EL1::M::EL0t }
+          + SPSR_EL1::I::Unmasked + SPSR_EL1::F::Masked).value as u64,
+      elr: pc as u64,
+      sp: sp as u64,
+    };
+    r.set_argument(arg);
+    r
+  }
+
   fn syscall_argument(&self, i: usize) -> usize {
     const AARCH64_SYSCALL_ARG_LIMIT: usize = 8;
     assert!(i < AARCH64_SYSCALL_ARG_LIMIT);

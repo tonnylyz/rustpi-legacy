@@ -1,65 +1,68 @@
-use crate::{
-  arch::{ArchTrait, ContextFrame, CoreTrait},
-  board::BOARD_CORE_NUMBER,
-  lib::process::Process,
-  lib::scheduler::{RoundRobinScheduler, SchedulerTrait},
-};
+use crate::arch::{ArchTrait, ContextFrame, CoreTrait};
+use crate::board::BOARD_CORE_NUMBER;
+use crate::lib::scheduler::{RoundRobinScheduler, SchedulerTrait};
+use crate::lib::thread::Thread;
 
 #[derive(Clone)]
 pub struct Core {
   context: Option<*mut ContextFrame>,
-  running_process: Option<Process>,
+  running_thread: Option<Thread>,
   scheduler: RoundRobinScheduler,
 }
 
 static mut CORES: [Core; BOARD_CORE_NUMBER] = [Core {
   context: None,
-  running_process: None,
+  running_thread: None,
   scheduler: RoundRobinScheduler::new(),
 }; BOARD_CORE_NUMBER];
 
 impl CoreTrait for Core {
-  fn current() -> *mut Self {
+  fn context(&self) -> ContextFrame {
     unsafe {
-      &mut CORES[crate::arch::Arch::core_id()]
-        as *mut Self
+      *self.context.unwrap()
     }
   }
 
-  fn context(&self) -> Option<*mut ContextFrame> {
-    self.context
-  }
-
-  fn set_context(&mut self, ctx: Option<*mut ContextFrame>) {
-    self.context = ctx;
-  }
-
-  fn install_context(&self, ctx: ContextFrame) {
+  fn context_mut(&self) -> &mut ContextFrame {
     unsafe {
-      *(self.context.unwrap()) = ctx;
+      self.context.unwrap().as_mut().unwrap()
     }
   }
 
-  fn running_process(&self) -> Option<Process> {
-    self.running_process
+  fn set_context(&mut self, ctx: *mut ContextFrame) {
+    self.context = Some(ctx);
   }
 
-  fn set_running_process(&mut self, p: Option<Process>) {
-    self.running_process = p
+  fn clear_context(&mut self) {
+    self.context = None;
+  }
+
+  fn has_context(&self) -> bool {
+    self.context.is_some()
+  }
+
+  fn install_context(&self, ctx: &ContextFrame) {
+    unsafe {
+      *(self.context.unwrap()) = *ctx;
+    }
+  }
+
+  fn running_thread(&self) -> Option<Thread> {
+    self.running_thread
+  }
+
+  fn set_running_thread(&mut self, t: Option<Thread>) {
+    self.running_thread = t
   }
 
   fn schedule(&mut self) {
     self.scheduler.schedule();
   }
+}
 
-  fn start_first_process(&self) -> ! {
-    extern {
-      fn pop_context_first(ctx: usize) -> !;
-    }
-    unsafe {
-      let p = self.running_process.unwrap();
-      let ctx = (*p.pcb()).context.unwrap();
-      pop_context_first(&ctx as *const _ as usize);
-    }
+pub fn current() -> &'static mut Core {
+  let core_id = crate::arch::Arch::core_id();
+  unsafe {
+    (&mut CORES[core_id] as *mut Core).as_mut().unwrap()
   }
 }

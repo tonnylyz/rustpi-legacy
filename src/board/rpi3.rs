@@ -1,4 +1,5 @@
 use core::ops::Range;
+
 use crate::arch::ArchTrait;
 
 pub const BOARD_CORE_NUMBER: usize = 4;

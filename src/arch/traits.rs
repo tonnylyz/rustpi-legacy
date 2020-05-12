@@ -1,7 +1,7 @@
 use crate::{
   arch::ContextFrame,
-  lib::process::Process,
 };
+use crate::lib::thread::Thread;
 
 pub trait Address {
   fn pa2kva(&self) -> usize;
@@ -24,17 +24,20 @@ pub trait ArchTrait {
 }
 
 pub trait CoreTrait {
-  fn current() -> *mut Self;
-  fn context(&self) -> Option<*mut ContextFrame>;
-  fn set_context(&mut self, ctx: Option<*mut ContextFrame>);
-  fn install_context(&self, ctx: ContextFrame);
-  fn running_process(&self) -> Option<Process>;
-  fn set_running_process(&mut self, p: Option<Process>);
+  fn context(&self) -> ContextFrame;
+  fn context_mut(&self) -> &mut ContextFrame;
+  fn set_context(&mut self, ctx: *mut ContextFrame);
+  fn clear_context(&mut self);
+  fn has_context(&self) -> bool;
+  fn install_context(&self, ctx: &ContextFrame);
+  fn running_thread(&self) -> Option<Thread>;
+  fn set_running_thread(&mut self, p: Option<Thread>);
   fn schedule(&mut self);
-  fn start_first_process(&self) -> !;
 }
 
-pub trait ContextFrameTrait: Default {
+pub trait ContextFrameTrait {
+  fn new(pc: usize, sp: usize, arg: usize, privileged: bool) -> Self;
+
   fn syscall_argument(&self, i: usize) -> usize;
   fn syscall_number(&self) -> usize;
   fn set_syscall_return_value(&mut self, v: usize);

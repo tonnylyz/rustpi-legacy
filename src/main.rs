@@ -10,6 +10,8 @@
 #![feature(asm)]
 
 extern crate alloc;
+#[macro_use]
+extern crate lazy_static;
 extern crate rlibc;
 
 use arch::*;
@@ -61,6 +63,12 @@ fn static_check() {
   }
 }
 
+fn kthread_test(arg: usize) {
+  loop {
+    print!("{}", arg);
+  }
+}
+
 #[no_mangle]
 pub unsafe fn main() -> ! {
   clear_bss();
@@ -69,18 +77,25 @@ pub unsafe fn main() -> ! {
   mm::heap::init();
   mm::page_pool::init();
   board::init_per_core();
-  lib::process_pool::init();
   // Note: `arg` is used to start different programs:
   //    0 - fktest: a `fork` test
   //    1 - pingpong: an IPC test
   //    2 - heap_test: test copy on write of heap
   #[cfg(target_arch = "aarch64")]
-    lib::process::Process::create(&lib::user_image::_binary_user_aarch64_elf_start, 0);
+    lib::process::create(&lib::user_image::_binary_user_aarch64_elf_start, 0);
   #[cfg(target_arch = "riscv64")]
-    lib::process::Process::create(&lib::user_image::_binary_user_riscv64_elf_start, 0);
-
+    lib::process::create(&lib::user_image::_binary_user_riscv64_elf_start, 0);
+  let t = lib::thread::alloc_kernel(kthread_test as usize, mm::page_pool::alloc().kva() + PAGE_SIZE, 0);
+  t.set_status(lib::thread::Status::TsRunnable);
+  // let u = lib::thread::alloc_kernel(kthread_test as usize, mm::page_pool::alloc().kva() + PAGE_SIZE, 1);
+  // u.set_status(lib::thread::Status::TsRunnable);
   arch::Arch::exception_init();
   driver::timer::init(0);
   lib::scheduler::schedule();
-  (*arch::Core::current()).start_first_process()
+  extern {
+    fn pop_context_first(ctx: usize) -> !;
+  }
+  let t = lib::current_thread().unwrap();
+  let ctx = *t.context();
+  pop_context_first(&ctx as *const _ as usize);
 }

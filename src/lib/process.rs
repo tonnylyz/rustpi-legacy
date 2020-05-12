@@ -1,17 +1,19 @@
+use alloc::boxed::Box;
+use alloc::collections::BTreeMap;
+use alloc::vec::Vec;
+use core::borrow::BorrowMut;
 use core::fmt::{Display, Formatter};
+
+use spin::Mutex;
 
 use crate::arch::*;
 use crate::config::*;
+use crate::lib::bitmap::BitMap;
+use crate::lib::current_thread;
 use crate::lib::page_table::{EntryAttribute, PageTableEntryAttrTrait, PageTableTrait};
+use crate::lib::thread::Thread;
 
 pub type Pid = u16;
-
-#[derive(Eq, PartialEq, Copy, Clone, Debug)]
-pub enum Status {
-  PsFree = 0,
-  PsRunnable = 1,
-  PsNotRunnable = 2,
-}
 
 #[repr(C, align(32))]
 #[derive(Copy, Clone, Debug)]
@@ -37,198 +39,215 @@ pub static mut IPC_LIST: [Ipc; CONFIG_PROCESS_NUMBER] = [Ipc {
 
 #[derive(Debug)]
 pub struct ControlBlock {
-  pub id: Pid,
-  pub parent: Option<Process>,
-  pub page_table: Option<PageTable>,
-  pub context: Option<ContextFrame>,
-  pub status: Status,
-  pub exception_handler: usize,
-  pub exception_stack_top: usize,
-
-  lock: spin::Mutex<()>,
-  running_at: Option<usize>, // core_id
+  pid: Pid,
+  threads: Vec<Thread>,
+  parent: Option<Process>,
+  page_table: PageTable,
+  exception_handler: Option<(usize, usize)>,
 }
-
-#[no_mangle]
-pub static mut PCB_LIST: [ControlBlock; CONFIG_PROCESS_NUMBER] = [ControlBlock {
-  id: 0,
-  parent: None,
-  page_table: None,
-  context: None,
-  status: Status::PsFree,
-  exception_handler: 0,
-  exception_stack_top: 0,
-  lock: spin::Mutex::new(()),
-  running_at: None,
-}; CONFIG_PROCESS_NUMBER];
 
 
 impl Display for ControlBlock {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), core::fmt::Error> {
-    writeln!(f, "Process {}", self.id)?;
-    writeln!(f, "parent: {:?}", self.parent)?;
-    writeln!(f, "directory: {:08x}", self.page_table.unwrap().directory().pa())?;
-    writeln!(f, "context:\n{}", self.context.unwrap())?;
-    writeln!(f, "status: {:?}", self.status)?;
-    writeln!(f, "exception_handler: {:016x}", self.exception_handler)?;
-    writeln!(f, "exception_stack_top: {:016x}", self.exception_stack_top)?;
+    writeln!(f, "Process {}", self.pid)?;
     Ok(())
   }
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub struct Process {
-  pid: Pid,
-}
+pub struct Process(Pid);
 
 impl Process {
-  pub fn new(pid: Pid) -> Self {
-    assert_ne!(pid, 0);
-    Process {
-      pid
-    }
-  }
-
   pub fn pid(&self) -> Pid {
-    self.pid
+    self.0
   }
 
-  pub fn index(&self) -> usize {
-    (self.pid - 1) as usize
+  pub fn main_thread(&self) -> Thread {
+    self.pcb().threads.get(0).unwrap().clone()
   }
 
-  pub fn pcb(&self) -> *mut ControlBlock {
+  pub fn set_main_thread(&self, t: Thread) {
+    assert!(self.pcb().threads.is_empty());
+    self.pcb().threads.push(t);
+  }
+
+  pub fn exception_handler(&self) -> Option<(usize, usize)> {
+    self.pcb().exception_handler
+  }
+
+  pub fn set_exception_handler(&self, entry: usize, stack_top: usize) {
+    self.pcb().exception_handler = Some((entry, stack_top));
+  }
+
+  pub fn page_table(&self) -> PageTable {
+    self.pcb().page_table
+  }
+
+  pub fn pcb(&self) -> &mut ControlBlock {
+    let mut map = PROCESS_MAP.lock();
+    let r;
+    match map.get_mut(&self.0) {
+      Some(b) => {
+        r = Box::borrow_mut(b) as *mut ControlBlock
+      }
+      None => panic!("process: pcb missing")
+    }
+    drop(map);
     unsafe {
-      (&mut PCB_LIST[self.index()]) as *mut ControlBlock
+      r.as_mut().unwrap()
     }
   }
 
-  pub fn ipc(&self) -> *mut Ipc {
+  #[allow(dead_code)]
+  pub fn ipc(&self) -> &mut Ipc {
     unsafe {
-      (&mut IPC_LIST[self.index()]) as *mut Ipc
+      ((&mut IPC_LIST[self.0 as usize]) as *mut Ipc).as_mut().unwrap()
     }
   }
 
   pub fn parent(&self) -> Option<Process> {
-    unsafe {
-      (*self.pcb()).parent
-    }
+    self.pcb().parent
   }
 
-  pub fn setup_vm(&self) {
-    unsafe {
-      let frame = crate::mm::page_pool::alloc();
-      crate::mm::page_pool::increase_rc(frame);
-      let page_table = PageTable::new(frame);
-      page_table.recursive_map(CONFIG_RECURSIVE_PAGE_TABLE_BTM);
-      for i in 0..(CONFIG_PROCESS_IPC_SIZE * CONFIG_PROCESS_NUMBER / PAGE_SIZE) {
-        let va = CONFIG_USER_IPC_LIST_BTM + i * PAGE_SIZE;
-        let pa = (&IPC_LIST[i * (PAGE_SIZE / CONFIG_PROCESS_IPC_SIZE)] as *const Ipc as usize).kva2pa();
-        page_table.map(va, pa, EntryAttribute::user_readonly());
-      }
-      (*self.pcb()).page_table = Some(page_table);
-    }
-  }
-
-  fn load_image(&self, elf: &'static [u8]) {
-    unsafe {
-      let page_table = (*self.pcb()).page_table.unwrap();
-      match page_table.insert_page(CONFIG_USER_STACK_TOP - PAGE_SIZE, crate::mm::page_pool::alloc(), EntryAttribute::user_default()) {
-        Ok(_) => {}
-        Err(_) => { panic!("process: load_image: page_table.insert_page failed") }
-      }
-      let entry = super::elf::load_elf(elf, page_table);
-      let mut ctx = (*self.pcb()).context.unwrap();
-      ctx.set_exception_pc(entry);
-      (*self.pcb()).context = Some(ctx);
-    }
-  }
-
-  pub fn create(elf: &'static [u8], arg: usize) {
-    if let Ok(pid) = super::process_pool::alloc(None, arg) {
-      pid.load_image(elf);
-    } else {
-      panic!("process: create: alloc error");
-    }
-  }
-
-  pub fn free(&self) {
-    self.unlock();
-    unsafe {
-      (*self.pcb()).page_table.unwrap().destroy();
-      let frame = (*self.pcb()).page_table.unwrap().directory();
-      crate::mm::page_pool::decrease_rc(frame);
-    }
-    super::process_pool::free(self.clone());
+  pub fn free(self) {
+    self.pcb().page_table.destroy();
+    let frame = self.pcb().page_table.directory();
+    crate::mm::page_pool::decrease_rc(frame);
+    super::process::free(self);
   }
 
   pub fn destroy(&self) {
     self.free();
-    unsafe {
-      let core = Core::current();
-      if let Some(pid) = (*core).running_process() {
-        if pid.pid == self.pid {
-          (*core).set_running_process(None);
+    if let Some(t) = current_thread() {
+      if let Some(p) = t.process() {
+        if p.0 == self.0 {
+          crate::arch::common::core::current().set_running_thread(None);
           crate::lib::scheduler::schedule();
         }
       }
     }
   }
+}
 
-  pub fn run(&self) {
+
+struct ProcessPool {
+  bitmap: BitMap,
+  alloced: Vec<Process>,
+}
+
+pub enum Error {
+  ProcessNotFoundError,
+}
+
+fn make_user_page_table() -> PageTable {
+  let frame = crate::mm::page_pool::alloc();
+  crate::mm::page_pool::increase_rc(frame);
+  let page_table = PageTable::new(frame);
+  page_table.recursive_map(CONFIG_RECURSIVE_PAGE_TABLE_BTM);
+  for i in 0..(CONFIG_PROCESS_IPC_SIZE * CONFIG_PROCESS_NUMBER / PAGE_SIZE) {
     unsafe {
-      assert!((*self.pcb()).page_table.is_some());
-      assert!((*self.pcb()).context.is_some());
-      let core = crate::arch::Core::current();
-      if let Some(prev) = (*core).running_process() {
-        // Note: normal switch
-        prev.lock();
-        prev.set_running_at(None);
-        (*(prev.pcb())).context = Some(*((*core).context().unwrap()));
-        prev.unlock();
-        (*core).install_context((*self.pcb()).context.unwrap());
-      } else {
-        if let Some(_) = (*core).context() {
-          // Note: previous process has been destroyed
-          (*core).install_context((*self.pcb()).context.unwrap());
-        } else {
-          // Note: this is first run
-          // Arch::start_first_process prepare the context to stack
-        }
+      let va = CONFIG_USER_IPC_LIST_BTM + i * PAGE_SIZE;
+      let pa = (&IPC_LIST[i * (PAGE_SIZE / CONFIG_PROCESS_IPC_SIZE)] as *const Ipc as usize).kva2pa();
+      page_table.map(va, pa, EntryAttribute::user_readonly());
+    }
+  }
+  page_table
+}
+
+impl ProcessPool {
+  fn alloc(&mut self, parent: Option<Process>) -> Process {
+    let id = self.bitmap.alloc() as Pid;
+    let b = Box::new(ControlBlock {
+      pid: id,
+      threads: Vec::new(),
+      parent,
+      page_table: make_user_page_table(),
+      exception_handler: None,
+    });
+    let mut map = PROCESS_MAP.lock();
+    map.insert(id, b);
+    drop(map);
+    self.alloced.push(Process(id));
+    Process(id)
+  }
+
+  fn free(&mut self, p: Process) -> Result<(), Error> {
+    if let Some(p) = self.alloced.remove_item(&p) {
+      self.bitmap.clear(p.0 as usize);
+      // TODO: free box in map
+      Ok(())
+    } else {
+      Err(Error::ProcessNotFoundError)
+    }
+  }
+
+  #[allow(dead_code)]
+  fn list(&self) -> Vec<Process> {
+    self.alloced.clone()
+  }
+
+  fn lookup(&self, pid: Pid) -> Option<Process> {
+    for i in self.alloced.iter() {
+      if i.pid() == pid {
+        return Some(i.clone());
       }
-      (*core).set_running_process(Some(self.clone()));
-      crate::arch::PageTable::set_user_page_table((*self.pcb()).page_table.unwrap(), self.pid as AddressSpaceId);
-      crate::arch::Arch::invalidate_tlb();
     }
+    None
   }
+}
 
-  pub fn is_runnable(&self) -> bool {
-    unsafe {
-      (*self.pcb()).status == Status::PsRunnable
-    }
+lazy_static! {
+  static ref PROCESS_MAP: Mutex<BTreeMap<Pid, Box<ControlBlock>>> = Mutex::new(BTreeMap::new());
+}
+
+static PROCESS_POOL: Mutex<ProcessPool> = Mutex::new(ProcessPool {
+  bitmap: BitMap::new(),
+  alloced: Vec::new(),
+});
+
+pub fn alloc(parent: Option<Process>) -> Process {
+  let mut pool = PROCESS_POOL.lock();
+  let r = pool.alloc(parent);
+  drop(pool);
+  r
+}
+
+pub fn free(p: Process) {
+  let mut pool = PROCESS_POOL.lock();
+  match pool.free(p) {
+    Ok(_) => {}
+    Err(_) => { println!("process_pool: free: process not found") }
   }
+  drop(pool);
+}
 
-  pub fn lock(&self) {
-    unsafe {
-      (*self.pcb()).lock.lock();
-    }
-  }
+#[allow(dead_code)]
+pub fn list() -> Vec<Process> {
+  let pool = PROCESS_POOL.lock();
+  let r = pool.list();
+  drop(pool);
+  r
+}
 
-  pub fn unlock(&self) {
-    unsafe {
-      (*self.pcb()).lock.force_unlock()
-    }
-  }
+pub fn lookup(pid: Pid) -> Option<Process> {
+  let pool = PROCESS_POOL.lock();
+  let r = pool.lookup(pid);
+  drop(pool);
+  r
+}
 
-  pub fn running_at(&self) -> Option<usize> {
-    unsafe {
-      (*self.pcb()).running_at
+pub fn create(elf: &'static [u8], arg: usize) {
+  let p = alloc(None);
+  unsafe {
+    let page_table = (*p.pcb()).page_table;
+    let pc = super::elf::load_elf(elf, page_table);
+    let sp = CONFIG_USER_STACK_TOP;
+    match page_table.insert_page(sp - PAGE_SIZE, crate::mm::page_pool::alloc(), EntryAttribute::user_default()) {
+      Ok(_) => {}
+      Err(_) => { panic!("process: load_image: page_table.insert_page failed") }
     }
-  }
-
-  pub fn set_running_at(&self, core: Option<usize>) {
-    unsafe {
-      (*self.pcb()).running_at = core;
-    }
+    let t = crate::lib::thread::alloc_user(pc, sp, arg, p);
+    t.set_status(crate::lib::thread::Status::TsRunnable);
+    p.set_main_thread(t);
   }
 }

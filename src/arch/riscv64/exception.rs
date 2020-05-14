@@ -83,7 +83,7 @@ unsafe extern "C" fn exception_entry(ctx: usize) {
   if from_kernel {
     //panic!("kernel exception");
   }
-  let core = crate::arch::common::core::current();
+  let core = crate::lib::core::current();
   core.set_context(ctx as *mut ContextFrame);
   let cause = SCAUSE.get();
   let irq = (cause >> 63) != 0;

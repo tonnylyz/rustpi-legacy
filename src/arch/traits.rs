@@ -24,15 +24,14 @@ pub trait ArchTrait {
 }
 
 pub trait CoreTrait {
-  fn context(&self) -> ContextFrame;
+  fn context(&self) -> &ContextFrame;
   fn context_mut(&self) -> &mut ContextFrame;
-  fn set_context(&mut self, ctx: *mut ContextFrame);
-  fn clear_context(&mut self);
+  fn set_context(&self, ctx: *mut ContextFrame);
+  fn clear_context(&self);
   fn has_context(&self) -> bool;
-  fn install_context(&self, ctx: &ContextFrame);
   fn running_thread(&self) -> Option<Thread>;
-  fn set_running_thread(&mut self, p: Option<Thread>);
-  fn schedule(&mut self);
+  fn set_running_thread(&self, p: Option<Thread>);
+  fn schedule(&self);
 }
 
 pub trait ContextFrameTrait {

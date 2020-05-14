@@ -180,7 +180,7 @@ impl SystemCallTrait for SystemCall {
     let t = current_thread().unwrap();
     let p = t.process().unwrap();
     let child = crate::lib::process::alloc(Some(p));
-    let mut ctx = crate::lib::current_core().context();
+    let mut ctx = *crate::lib::current_core().context();
     ctx.set_syscall_return_value(0);
     let child_thread = crate::lib::thread::alloc_user(0, 0, 0, child.clone());
     *child_thread.context() = ctx;

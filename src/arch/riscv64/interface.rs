@@ -28,8 +28,6 @@ pub type ArchPageTableEntry = super::page_table::Riscv64PageTableEntry;
 
 pub type AddressSpaceId = u16;
 
-pub type Core = super::super::common::core::Core;
-
 pub struct Riscv64Arch;
 
 impl crate::arch::ArchTrait for Riscv64Arch {

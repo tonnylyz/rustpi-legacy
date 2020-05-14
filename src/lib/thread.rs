@@ -80,20 +80,20 @@ impl Thread {
 
   pub fn run(&self) {
     println!("run thread {}", self.tid());
-    let core = crate::arch::common::core::current();
+    let core = crate::lib::core::current();
     if let Some(t) = current_thread() {
       // Note: normal switch
       let mut old = t.context();
-      *old = core.context();
+      *old = *core.context();
       drop(old);
       let new = self.context();
-      core.install_context(&*new);
+      *core.context_mut() = *new;
       drop(new);
     } else {
       if core.has_context() {
         // Note: previous process has been destroyed
         let new = self.context();
-        core.install_context(&*new);
+        *core.context_mut() = *new;
         drop(new);
       } else {
         // Note: this is first run
@@ -111,7 +111,7 @@ impl Thread {
   pub fn destroy(&self) {
     if let Some(t) = current_thread() {
       if self.0.tid == t.tid() {
-        crate::arch::common::core::current().set_running_thread(None);
+        crate::lib::core::current().set_running_thread(None);
       }
     }
     free(self)
@@ -211,6 +211,7 @@ pub fn list() -> Vec<Thread> {
   r
 }
 
+#[allow(dead_code)]
 pub fn lookup(tid: Tid) -> Option<Thread> {
   let map = THREAD_MAP.lock();
   let r = match map.get(&tid) {

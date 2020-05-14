@@ -1,4 +1,5 @@
-use crate::arch::{Core, CoreTrait};
+use crate::arch::CoreTrait;
+use crate::lib::core::Core;
 
 pub mod print;
 pub mod isr;
@@ -10,6 +11,7 @@ pub mod syscall;
 pub mod page_table;
 pub mod thread;
 pub mod bitmap;
+pub mod core;
 
 #[inline(always)]
 pub fn round_up(addr: usize, n: usize) -> usize {
@@ -21,13 +23,13 @@ pub fn round_down(addr: usize, n: usize) -> usize {
   addr & !(n - 1)
 }
 
-pub fn current_core() -> &'static mut Core {
-  crate::arch::common::core::current()
+pub fn current_core() -> &'static Core {
+  crate::lib::core::current()
 }
 
 #[inline(always)]
 pub fn current_thread() -> Option<self::thread::Thread> {
-  let core = crate::arch::common::core::current();
+  let core = crate::lib::core::current();
   core.running_thread()
 }
 

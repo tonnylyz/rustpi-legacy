@@ -29,8 +29,6 @@ pub type ArchPageTableEntry = super::page_table::Aarch64PageTableEntry;
 
 pub type AddressSpaceId = u16;
 
-pub type Core = super::super::common::core::Core;
-
 pub struct Aarch64Arch;
 
 impl crate::arch::ArchTrait for Aarch64Arch {

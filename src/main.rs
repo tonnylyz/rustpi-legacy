@@ -47,11 +47,9 @@ fn clear_bss() {
 }
 
 fn static_check() {
-  use config::*;
   use core::intrinsics::size_of;
   #[allow(unused_unsafe)]
     unsafe {
-    assert_eq!(size_of::<crate::lib::process::Ipc>(), CONFIG_PROCESS_IPC_SIZE);
     // Note: size of ContextFrame needs to be synced with `arch/*/exception.S`
     if cfg!(target_arch = "aarch64") {
       assert_eq!(size_of::<ContextFrame>(), 0x110);

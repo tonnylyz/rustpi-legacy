@@ -1,7 +1,3 @@
-// process config
-pub const CONFIG_PROCESS_NUMBER: usize = 1 << 10;
-pub const CONFIG_PROCESS_IPC_SIZE: usize = 32;
-
 // user space read only page table map
 #[cfg(target_arch = "aarch64")]
 pub const CONFIG_RECURSIVE_PAGE_TABLE_BTM: usize = 0x3f_c000_0000;
@@ -18,6 +14,5 @@ pub const CONFIG_READ_ONLY_LEVEL_2_PAGE_TABLE_BTM: usize = 0x3f_c000_0000 - 0x20
 pub const CONFIG_READ_ONLY_LEVEL_1_PAGE_TABLE_BTM: usize = 0x3f_c000_0000 - 0x20_0000 - 0x1000; // 4 KB
 
 // user space map
-pub const CONFIG_USER_IPC_LIST_BTM: usize = 0x3f_a000_0000;
 pub const CONFIG_USER_LIMIT: usize = 0x3f_a000_0000;
 pub const CONFIG_USER_STACK_TOP: usize = 0x3f_8000_0000;

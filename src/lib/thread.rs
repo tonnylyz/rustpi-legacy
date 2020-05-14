@@ -1,8 +1,6 @@
-use alloc::boxed::Box;
 use alloc::collections::BTreeMap;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
-use core::borrow::BorrowMut;
 
 use spin::{Mutex, MutexGuard};
 
@@ -59,16 +57,16 @@ impl Thread {
   }
 
   pub fn runnable(&self) -> bool {
-    let mut lock = self.0.status.lock();
+    let lock = self.0.status.lock();
     let r = *lock == Status::TsRunnable;
     drop(lock);
     r
   }
 
   pub fn process(&self) -> Option<Process> {
-    match self.0.t {
+    match &self.0.t {
       Type::User(p) => {
-        Some(p)
+        Some(p.clone())
       }
       _ => {
         None
@@ -109,6 +107,15 @@ impl Thread {
     }
     crate::arch::Arch::invalidate_tlb();
   }
+
+  pub fn destroy(&self) {
+    if let Some(t) = current_thread() {
+      if self.0.tid == t.tid() {
+        crate::arch::common::core::current().set_running_thread(None);
+      }
+    }
+    free(self)
+  }
 }
 
 struct ThreadPool {
@@ -147,8 +154,8 @@ impl ThreadPool {
     Thread(arc)
   }
 
-  fn free(&mut self, t: Thread) -> Result<(), Error> {
-    if let Some(t) = self.alloced.remove_item(&t) {
+  fn free(&mut self, t: &Thread) -> Result<(), Error> {
+    if let Some(t) = self.alloced.remove_item(t) {
       let mut map = THREAD_MAP.lock();
       map.remove(&t.tid());
       drop(map);
@@ -188,9 +195,9 @@ pub fn alloc_kernel(pc: usize, sp: usize, arg: usize) -> Thread {
   r
 }
 
-pub fn free(p: Thread) {
+pub fn free(t: &Thread) {
   let mut pool = THREAD_POOL.lock();
-  match pool.free(p) {
+  match pool.free(t) {
     Ok(_) => {}
     Err(_) => { println!("thread_pool: free: thread not found") }
   }

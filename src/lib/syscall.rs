@@ -182,7 +182,7 @@ impl SystemCallTrait for SystemCall {
     let child = crate::lib::process::alloc(Some(p));
     let mut ctx = crate::lib::current_core().context();
     ctx.set_syscall_return_value(0);
-    let child_thread = crate::lib::thread::alloc_user(0, 0, 0, child);
+    let child_thread = crate::lib::thread::alloc_user(0, 0, 0, child.clone());
     *child_thread.context() = ctx;
     child_thread.set_status(crate::lib::thread::Status::TsNotRunnable);
     child.set_main_thread(child_thread);
@@ -206,49 +206,10 @@ impl SystemCallTrait for SystemCall {
   #[allow(unused_variables)]
   fn ipc_receive(dst_va: usize) {
     unimplemented!()
-    // unsafe {
-    //   let t = current_thread().unwrap();
-    //   let p = t.process().unwrap();
-    //   (*p.ipc()).attribute = dst_va;
-    //   (*p.ipc()).receiving = true;
-    //   SystemCall::thread_yield();
-    // }
   }
 
   #[allow(unused_variables)]
   fn ipc_can_send(pid: u16, value: usize, src_va: usize, attr: usize) -> Result<(), Error> {
     unimplemented!()
-    // if src_va >= CONFIG_USER_LIMIT {
-    //   return Err(MemoryLimitError);
-    // }
-    // unsafe {
-    //   let t = current_thread();
-    //   let src_p = t.process().unwrap();
-    //   let dst_p = lookup_pid(pid, false)?;
-    //   if !(*dst_p.ipc()).receiving {
-    //     return Err(IpcNotReceivingError);
-    //   }
-    //   if src_va != 0 {
-    //     let dst_va = (*dst_p.ipc()).address;
-    //     if dst_va >= CONFIG_USER_LIMIT {
-    //       return Err(MemoryLimitError);
-    //     }
-    //     let src_page_table = src_p.page_table();
-    //     if let Some(src_pte) = src_page_table.lookup_page(src_va) {
-    //       let user_attr = Entry::from(ArchPageTableEntry::from_pte(attr)).attribute();
-    //       let attr = user_attr.filter();
-    //       (*dst_p.ipc()).attribute = ArchPageTableEntry::from(Entry::new(attr, 0)).to_pte();
-    //       let dst_page_table = dst_p.page_table();
-    //       dst_page_table.insert_page(dst_va, PageFrame::new(src_pte.pa()), attr)?;
-    //     } else {
-    //       return Err(InvalidArgumentError);
-    //     }
-    //   }
-    //   (*dst_p.ipc()).receiving = false;
-    //   (*dst_p.ipc()).from = src_p.pid();
-    //   (*dst_p.ipc()).value = value;
-    //   dst_p.main_thread().set_status(crate::lib::thread::Status::TsRunnable);
-    //   Ok(())
-    // }
   }
 }

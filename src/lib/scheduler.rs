@@ -23,7 +23,7 @@ impl SchedulerTrait for RoundRobinScheduler {
         continue;
       }
       let i = self.counter % candidates.len();
-      let t = candidates[i];
+      let t = candidates[i].clone();
       if t.runnable() {
         println!("\nscheduler: switch to [{}]", t.tid());
         t.run();

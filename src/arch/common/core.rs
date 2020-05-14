@@ -48,7 +48,7 @@ impl CoreTrait for Core {
   }
 
   fn running_thread(&self) -> Option<Thread> {
-    self.running_thread
+    self.running_thread.clone()
   }
 
   fn set_running_thread(&mut self, t: Option<Thread>) {

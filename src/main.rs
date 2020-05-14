@@ -96,6 +96,8 @@ pub unsafe fn main() -> ! {
     fn pop_context_first(ctx: usize) -> !;
   }
   let t = lib::current_thread().unwrap();
-  let ctx = *t.context();
+  let lock = t.context();
+  let ctx = *lock;
+  drop(lock);
   pop_context_first(&ctx as *const _ as usize);
 }

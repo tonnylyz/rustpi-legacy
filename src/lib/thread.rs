@@ -1,9 +1,10 @@
 use alloc::boxed::Box;
 use alloc::collections::BTreeMap;
+use alloc::sync::Arc;
 use alloc::vec::Vec;
 use core::borrow::BorrowMut;
 
-use spin::Mutex;
+use spin::{Mutex, MutexGuard};
 
 use crate::arch::{AddressSpaceId, ArchTrait, ContextFrame, ContextFrameTrait, CoreTrait};
 use crate::lib::bitmap::BitMap;
@@ -13,47 +14,59 @@ use crate::lib::process::Process;
 
 pub type Tid = u16;
 
+#[derive(Debug)]
 pub enum Type {
   User(Process),
   Kernel,
 }
 
-#[derive(Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum Status {
   TsRunnable = 1,
   TsNotRunnable = 2,
 }
 
+#[derive(Debug)]
 pub struct ControlBlock {
-  #[allow(dead_code)]
   tid: u16,
   t: Type,
-  status: Status,
-  context: ContextFrame,
+  status: Mutex<Status>,
+  context: Mutex<ContextFrame>,
 }
 
 pub enum Error {
   ThreadNotFoundError
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub struct Thread(Tid);
+#[derive(Debug, Clone)]
+pub struct Thread(Arc<ControlBlock>);
+
+impl PartialEq for Thread {
+  fn eq(&self, other: &Self) -> bool {
+    self.0.tid == other.0.tid
+  }
+}
 
 impl Thread {
   pub fn tid(&self) -> Tid {
-    self.0
+    self.0.tid
   }
 
   pub fn set_status(&self, status: Status) {
-    self.tcb().status = status;
+    let mut lock = self.0.status.lock();
+    *lock = status;
+    drop(lock);
   }
 
   pub fn runnable(&self) -> bool {
-    self.tcb().status == Status::TsRunnable
+    let mut lock = self.0.status.lock();
+    let r = *lock == Status::TsRunnable;
+    drop(lock);
+    r
   }
 
   pub fn process(&self) -> Option<Process> {
-    match self.tcb().t {
+    match self.0.t {
       Type::User(p) => {
         Some(p)
       }
@@ -63,23 +76,8 @@ impl Thread {
     }
   }
 
-  pub fn tcb(&self) -> &mut ControlBlock {
-    let mut map = THREAD_MAP.lock();
-    let r;
-    match map.get_mut(&self.0) {
-      Some(b) => {
-        r = Box::borrow_mut(b) as *mut ControlBlock
-      }
-      None => panic!("thread: tcb missing")
-    }
-    drop(map);
-    unsafe { r.as_mut().unwrap() }
-  }
-
-  pub fn context(&self) -> &mut ContextFrame {
-    unsafe {
-      (&mut self.tcb().context as *mut ContextFrame).as_mut().unwrap()
-    }
+  pub fn context(&self) -> MutexGuard<ContextFrame> {
+    self.0.context.lock()
   }
 
   pub fn run(&self) {
@@ -87,15 +85,21 @@ impl Thread {
     let core = crate::arch::common::core::current();
     if let Some(t) = current_thread() {
       // Note: normal switch
-      t.tcb().context = core.context();
-      core.install_context(&self.context());
+      let mut old = t.context();
+      *old = core.context();
+      drop(old);
+      let new = self.context();
+      core.install_context(&*new);
+      drop(new);
     } else {
       if core.has_context() {
         // Note: previous process has been destroyed
-        core.install_context(&self.context());
+        let new = self.context();
+        core.install_context(&*new);
+        drop(new);
       } else {
         // Note: this is first run
-        // Arch::start_first_process prepare the context to stack
+        // `main` prepare the context to stack
       }
     }
     core.set_running_thread(Some(self.clone()));
@@ -115,38 +119,40 @@ struct ThreadPool {
 impl ThreadPool {
   fn alloc_user(&mut self, pc: usize, sp: usize, arg: usize, p: Process) -> Thread {
     let id = self.bitmap.alloc() as Tid;
-    let b = Box::new(ControlBlock {
+    let arc = Arc::new(ControlBlock {
       tid: id,
       t: Type::User(p),
-      status: Status::TsNotRunnable,
-      context: ContextFrame::new(pc, sp, arg, false),
+      status: Mutex::new(Status::TsNotRunnable),
+      context: Mutex::new(ContextFrame::new(pc, sp, arg, false)),
     });
     let mut map = THREAD_MAP.lock();
-    map.insert(id, b);
+    map.insert(id, arc.clone());
     drop(map);
-    self.alloced.push(Thread(id));
-    Thread(id)
+    self.alloced.push(Thread(arc.clone()));
+    Thread(arc)
   }
 
   fn alloc_kernel(&mut self, pc: usize, sp: usize, arg: usize) -> Thread {
     let id = self.bitmap.alloc() as Tid;
-    let b = Box::new(ControlBlock {
+    let arc = Arc::new(ControlBlock {
       tid: id,
       t: Type::Kernel,
-      status: Status::TsNotRunnable,
-      context: ContextFrame::new(pc, sp, arg, true),
+      status: Mutex::new(Status::TsNotRunnable),
+      context: Mutex::new(ContextFrame::new(pc, sp, arg, true)),
     });
     let mut map = THREAD_MAP.lock();
-    map.insert(id, b);
+    map.insert(id, arc.clone());
     drop(map);
-    self.alloced.push(Thread(id));
-    Thread(id)
+    self.alloced.push(Thread(arc.clone()));
+    Thread(arc)
   }
 
   fn free(&mut self, t: Thread) -> Result<(), Error> {
     if let Some(t) = self.alloced.remove_item(&t) {
-      // TODO: free box in map
-      self.bitmap.clear(t.0 as usize);
+      let mut map = THREAD_MAP.lock();
+      map.remove(&t.tid());
+      drop(map);
+      self.bitmap.clear(t.tid() as usize);
       Ok(())
     } else {
       Err(Error::ThreadNotFoundError)
@@ -157,18 +163,10 @@ impl ThreadPool {
     self.alloced.clone()
   }
 
-  fn lookup(&self, tid: Tid) -> Option<Thread> {
-    for i in self.alloced.iter() {
-      if i.tid() == tid {
-        return Some(i.clone());
-      }
-    }
-    None
-  }
 }
 
 lazy_static! {
-  static ref THREAD_MAP: Mutex<BTreeMap<Tid, Box<ControlBlock>>> = Mutex::new(BTreeMap::new());
+  static ref THREAD_MAP: Mutex<BTreeMap<Tid, Arc<ControlBlock>>> = Mutex::new(BTreeMap::new());
 }
 
 static THREAD_POOL: Mutex<ThreadPool> = Mutex::new(ThreadPool {
@@ -194,7 +192,7 @@ pub fn free(p: Thread) {
   let mut pool = THREAD_POOL.lock();
   match pool.free(p) {
     Ok(_) => {}
-    Err(_) => { println!("process_pool: free: process not found") }
+    Err(_) => { println!("thread_pool: free: thread not found") }
   }
   drop(pool);
 }
@@ -207,8 +205,11 @@ pub fn list() -> Vec<Thread> {
 }
 
 pub fn lookup(tid: Tid) -> Option<Thread> {
-  let pool = THREAD_POOL.lock();
-  let r = pool.lookup(tid);
-  drop(pool);
+  let map = THREAD_MAP.lock();
+  let r = match map.get(&tid) {
+    Some(arc) => Some(Thread(arc.clone())),
+    None => None
+  };
+  drop(map);
   r
 }

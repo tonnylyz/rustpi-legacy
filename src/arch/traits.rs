@@ -32,6 +32,8 @@ pub trait CoreTrait {
   fn running_thread(&self) -> Option<Thread>;
   fn set_running_thread(&self, p: Option<Thread>);
   fn schedule(&self);
+  fn create_idle_thread(&self);
+  fn idle_thread(&self) -> Thread;
 }
 
 pub trait ContextFrameTrait {

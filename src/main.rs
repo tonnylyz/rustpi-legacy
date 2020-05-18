@@ -16,6 +16,8 @@ extern crate rlibc;
 
 use arch::*;
 
+use crate::lib::current_thread;
+
 #[macro_export]
 macro_rules! print {
     ($($arg:tt)*) => ($crate::lib::print::print_arg(format_args!($($arg)*)));
@@ -61,41 +63,44 @@ fn static_check() {
   }
 }
 
-fn kthread_test(arg: usize) {
-  loop {
-    print!("{}", arg);
-  }
-}
 
 #[no_mangle]
 pub unsafe fn main() -> ! {
-  clear_bss();
-  board::init();
-  static_check();
-  mm::heap::init();
-  mm::page_pool::init();
+  let core_id = arch::Arch::core_id();
+  if core_id == 0 {
+    clear_bss();
+    board::init();
+    static_check();
+    mm::heap::init();
+    mm::page_pool::init();
+    board::launch_other_cores();
+  }
   board::init_per_core();
-  // Note: `arg` is used to start different programs:
-  //    0 - fktest: a `fork` test
-  //    1 - pingpong: an IPC test
-  //    2 - heap_test: test copy on write of heap
-  #[cfg(target_arch = "aarch64")]
-    lib::process::create(&lib::user_image::_binary_user_aarch64_elf_start, 0);
-  #[cfg(target_arch = "riscv64")]
-    lib::process::create(&lib::user_image::_binary_user_riscv64_elf_start, 0);
-  let t = lib::thread::alloc_kernel(kthread_test as usize, mm::page_pool::alloc().kva() + PAGE_SIZE, 0);
-  t.set_status(lib::thread::Status::TsRunnable);
-  // let u = lib::thread::alloc_kernel(kthread_test as usize, mm::page_pool::alloc().kva() + PAGE_SIZE, 1);
-  // u.set_status(lib::thread::Status::TsRunnable);
-  arch::Arch::exception_init();
-  driver::timer::init(0);
+
+  if core_id == 0 {
+    // Note: `arg` is used to start different programs:
+    //    0 - fktest: a `fork` test
+    //    1 - pingpong: an IPC test
+    //    2 - heap_test: test copy on write of heap
+    #[cfg(target_arch = "aarch64")]
+      lib::process::create(&lib::user_image::_binary_user_aarch64_elf_start, 0);
+    #[cfg(target_arch = "riscv64")]
+      lib::process::create(&lib::user_image::_binary_user_riscv64_elf_start, 0);
+  }
+
   lib::scheduler::schedule();
+  start_first_thread()
+}
+
+fn start_first_thread() -> ! {
   extern {
     fn pop_context_first(ctx: usize) -> !;
   }
-  let t = lib::current_thread().unwrap();
+  let t = current_thread().unwrap();
   let lock = t.context();
-  let ctx = *lock;
+  let ctx_on_stack = *lock;
   drop(lock);
-  pop_context_first(&ctx as *const _ as usize);
+  unsafe {
+    pop_context_first(&ctx_on_stack as *const _ as usize);
+  }
 }

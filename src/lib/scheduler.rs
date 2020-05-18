@@ -1,8 +1,5 @@
-use alloc::vec::Vec;
-
-use crate::arch::{ArchTrait, CoreTrait};
+use crate::arch::CoreTrait;
 use crate::lib::current_core;
-use crate::lib::thread::Thread;
 
 #[derive(Copy, Clone)]
 pub struct RoundRobinScheduler {
@@ -15,21 +12,28 @@ pub trait SchedulerTrait {
 
 impl SchedulerTrait for RoundRobinScheduler {
   fn schedule(&mut self) {
-    loop {
-      self.counter += 1;
-      let candidates: Vec<Thread> = crate::lib::thread::list();
-      if candidates.is_empty() {
-        crate::arch::Arch::wait_for_event();
-        continue;
-      }
-      let i = self.counter % candidates.len();
-      let t = candidates[i].clone();
+    self.counter += 1;
+    let list = crate::lib::thread::list();
+    for i in (self.counter % list.len())..list.len() {
+      let t = list[i].clone();
       if t.runnable() {
-        println!("\nscheduler: switch to [{}]", t.tid());
-        t.run();
-        return;
+        if t.run() {
+          return;
+        }
       }
     }
+    for i in 0..list.len() {
+      let t = list[i].clone();
+      if t.runnable() {
+        if t.run() {
+          return;
+        }
+      }
+    }
+    // if no other runnable thread, run idle thread
+    let core = current_core();
+    let t = core.idle_thread();
+    assert!(t.run());
   }
 }
 

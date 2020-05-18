@@ -29,6 +29,8 @@ pub type ArchPageTableEntry = super::page_table::Aarch64PageTableEntry;
 
 pub type AddressSpaceId = u16;
 
+pub type CoreId = usize;
+
 pub struct Aarch64Arch;
 
 impl crate::arch::ArchTrait for Aarch64Arch {
@@ -57,7 +59,7 @@ impl crate::arch::ArchTrait for Aarch64Arch {
     FAR_EL1.get() as usize
   }
 
-  fn core_id() -> usize {
+  fn core_id() -> CoreId {
     MPIDR_EL1.get() as usize & (BOARD_CORE_NUMBER - 1)
   }
 }

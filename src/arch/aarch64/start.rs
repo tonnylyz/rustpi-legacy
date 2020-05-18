@@ -52,12 +52,6 @@ unsafe fn el1_start() -> ! {
   use cortex_a::regs::*;
   let core_id = MPIDR_EL1.get() & CORE_MASK;
   super::mmu::init(core_id == BOOT_CORE_ID);
-  SP.set(0x0008_0000usize.pa2kva() as u64);
-  // TODO: (aarch64) bring up other cores when ready
-  //if core_id == BOOT_CORE_ID {
-  //  crate::driver::mmio::write_dword(0xe0usize.pa2kva(), el2_start as u64);
-  //  crate::driver::mmio::write_dword(0xe8usize.pa2kva(), el2_start as u64);
-  //  crate::driver::mmio::write_dword(0xf0usize.pa2kva(), el2_start as u64);
-  //}
+  SP.set(((0x0008_0000 - core_id * 0x0002_0000) as usize).pa2kva() as u64);
   crate::main();
 }

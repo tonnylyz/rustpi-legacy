@@ -70,8 +70,8 @@ impl Process {
 
   pub fn parent(&self) -> Option<Process> {
     match &self.0.parent {
-      None => {None},
-      Some(p) => {Some(p.clone())},
+      None => { None }
+      Some(p) => { Some(p.clone()) }
     }
   }
 
@@ -140,7 +140,6 @@ impl ProcessPool {
   fn list(&self) -> Vec<Process> {
     self.alloced.clone()
   }
-
 }
 
 lazy_static! {
@@ -197,4 +196,5 @@ pub fn create(elf: &'static [u8], arg: usize) {
   }
   let t = crate::lib::thread::alloc_user(pc, sp, arg, p.clone());
   t.set_status(crate::lib::thread::Status::TsRunnable);
-  p.set_main_thread(t);}
+  p.set_main_thread(t);
+}

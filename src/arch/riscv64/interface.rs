@@ -28,6 +28,8 @@ pub type ArchPageTableEntry = super::page_table::Riscv64PageTableEntry;
 
 pub type AddressSpaceId = u16;
 
+pub type CoreId = usize;
+
 pub struct Riscv64Arch;
 
 impl crate::arch::ArchTrait for Riscv64Arch {
@@ -51,7 +53,7 @@ impl crate::arch::ArchTrait for Riscv64Arch {
     STVAL.get() as usize
   }
 
-  fn core_id() -> usize {
+  fn core_id() -> CoreId {
     // TODO: (riscv64) core id
     0
   }

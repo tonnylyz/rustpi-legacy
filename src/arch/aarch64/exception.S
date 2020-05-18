@@ -105,10 +105,13 @@ pop_context:
     add	sp, sp, #0x110 // size of ContextFrame
     eret
 
-.section .text.kvm
-.global smpen
-smpen:
-    mrs x0, S3_1_c15_c2_1
-    orr x0, x0, #0x40
-    msr S3_1_c15_c2_1, x0
+.section .text
+.global get_el2_entry
+get_el2_entry:
+    ldr x0, =el2_start
+    ret
+
+.global get_sp
+get_sp:
+    mov x0, sp
     ret

@@ -23,7 +23,7 @@ pub fn next() {
   ecall(SBI_SET_TIMER, time + TIMER_DEFAULT_COUNT, 0, 0);
 }
 
-pub fn init(_core_id: usize) {
+pub fn init() {
   next();
   SIE.write(SIE::STIE.val(1));
 }

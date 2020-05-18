@@ -4,7 +4,7 @@ use alloc::vec::Vec;
 
 use spin::{Mutex, MutexGuard};
 
-use crate::arch::{AddressSpaceId, ArchTrait, ContextFrame, ContextFrameTrait, CoreTrait};
+use crate::arch::{AddressSpaceId, ArchTrait, ContextFrame, ContextFrameTrait, CoreId, CoreTrait};
 use crate::lib::bitmap::BitMap;
 use crate::lib::current_thread;
 use crate::lib::page_table::PageTableTrait;
@@ -22,6 +22,7 @@ pub enum Type {
 pub enum Status {
   TsRunnable = 1,
   TsNotRunnable = 2,
+  TsIdle = 3,
 }
 
 #[derive(Debug)]
@@ -30,6 +31,7 @@ pub struct ControlBlock {
   t: Type,
   status: Mutex<Status>,
   context: Mutex<ContextFrame>,
+  core: Mutex<Option<CoreId>>,
 }
 
 pub enum Error {
@@ -78,8 +80,20 @@ impl Thread {
     self.0.context.lock()
   }
 
-  pub fn run(&self) {
-    println!("run thread {}", self.tid());
+  pub fn run(&self) -> bool {
+    let mut core_lock = self.0.core.lock();
+    match *core_lock {
+      Some(core_id) => {
+        if core_id != crate::arch::Arch::core_id() {
+          drop(core_lock);
+          return false;
+        }
+      }
+      None => {
+        *core_lock = Some(crate::arch::Arch::core_id());
+      }
+    }
+    drop(core_lock);
     let core = crate::lib::core::current();
     if let Some(t) = current_thread() {
       // Note: normal switch
@@ -102,10 +116,11 @@ impl Thread {
     }
     core.set_running_thread(Some(self.clone()));
     if let Some(p) = self.process() {
-      println!("run process {}", self.process().unwrap().pid());
+      println!("\ncore_{} switch to P{}/T{}", crate::arch::Arch::core_id(), p.pid(), self.tid());
       crate::arch::PageTable::set_user_page_table(p.page_table(), p.pid() as AddressSpaceId);
     }
     crate::arch::Arch::invalidate_tlb();
+    true
   }
 
   pub fn destroy(&self) {
@@ -131,6 +146,7 @@ impl ThreadPool {
       t: Type::User(p),
       status: Mutex::new(Status::TsNotRunnable),
       context: Mutex::new(ContextFrame::new(pc, sp, arg, false)),
+      core: Mutex::new(None),
     });
     let mut map = THREAD_MAP.lock();
     map.insert(id, arc.clone());
@@ -146,6 +162,7 @@ impl ThreadPool {
       t: Type::Kernel,
       status: Mutex::new(Status::TsNotRunnable),
       context: Mutex::new(ContextFrame::new(pc, sp, arg, true)),
+      core: Mutex::new(None),
     });
     let mut map = THREAD_MAP.lock();
     map.insert(id, arc.clone());
@@ -169,7 +186,6 @@ impl ThreadPool {
   fn list(&self) -> Vec<Thread> {
     self.alloced.clone()
   }
-
 }
 
 lazy_static! {

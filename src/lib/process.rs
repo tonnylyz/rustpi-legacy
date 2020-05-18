@@ -188,13 +188,17 @@ pub fn lookup(pid: Pid) -> Option<Process> {
 pub fn create(elf: &'static [u8], arg: usize) {
   let p = alloc(None);
   let page_table = p.page_table();
-  let pc = unsafe { crate::lib::elf::load_elf(elf, page_table) };
-  let sp = CONFIG_USER_STACK_TOP;
-  match page_table.insert_page(sp - PAGE_SIZE, crate::mm::page_pool::alloc(), EntryAttribute::user_default()) {
-    Ok(_) => {}
-    Err(_) => { panic!("process: load_image: page_table.insert_page failed") }
+  match crate::lib::elf::load(elf, page_table) {
+    Ok(pc) => {
+      let sp = CONFIG_USER_STACK_TOP;
+      match page_table.insert_page(sp - PAGE_SIZE, crate::mm::page_pool::alloc(), EntryAttribute::user_default()) {
+        Ok(_) => {}
+        Err(_) => { panic!("process: create: page_table.insert_page failed") }
+      }
+      let t = crate::lib::thread::alloc_user(pc, sp, arg, p.clone());
+      t.set_status(crate::lib::thread::Status::TsRunnable);
+      p.set_main_thread(t);
+    }
+    Err(_) => { panic!("process: create: load err") }
   }
-  let t = crate::lib::thread::alloc_user(pc, sp, arg, p.clone());
-  t.set_status(crate::lib::thread::Status::TsRunnable);
-  p.set_main_thread(t);
 }

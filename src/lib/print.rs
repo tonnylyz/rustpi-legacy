@@ -1,10 +1,13 @@
 use core::fmt;
+use core::fmt::Write;
+
+use spin::Mutex;
 
 use crate::arch::{Arch, ArchTrait};
 
 pub struct Writer;
 
-static mut WRITER: Writer = Writer;
+static WRITER: Mutex<Writer> = Mutex::new(Writer);
 
 impl fmt::Write for Writer {
   fn write_str(&mut self, s: &str) -> fmt::Result {
@@ -16,10 +19,9 @@ impl fmt::Write for Writer {
 }
 
 pub fn print_arg(args: fmt::Arguments) {
-  use core::fmt::Write;
-  unsafe {
-    WRITER.write_fmt(args).unwrap();
-  }
+  let mut lock = WRITER.lock();
+  lock.write_fmt(args).unwrap();
+  drop(lock);
 }
 
 #[panic_handler]

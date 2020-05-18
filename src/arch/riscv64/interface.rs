@@ -54,7 +54,14 @@ impl crate::arch::ArchTrait for Riscv64Arch {
   }
 
   fn core_id() -> CoreId {
-    // TODO: (riscv64) core id
-    0
+    // Note: at boot hart_id is directly store in SSCRATCH (hart_id < 256 typically)
+    if SSCRATCH.get() < 256 {
+      SSCRATCH.get() as usize
+    } else {
+      // SSCRATCH then is used as kernel stack pointer (it points at hart_id)
+      unsafe {
+        ((SSCRATCH.get() as usize) as *const usize).read()
+      }
+    }
   }
 }

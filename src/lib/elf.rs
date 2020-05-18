@@ -1,7 +1,7 @@
 use crate::arch::{PAGE_SIZE, PageTable};
+use crate::lib::{round_down, round_up};
 use crate::lib::page_table::{EntryAttribute, PageTableEntryAttrTrait, PageTableTrait};
 use crate::mm::PageFrame;
-use crate::lib::{round_down, round_up};
 
 pub enum Error {
   ElfHeaderError,

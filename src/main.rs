@@ -63,10 +63,8 @@ fn static_check() {
   }
 }
 
-
 #[no_mangle]
-pub unsafe fn main() -> ! {
-  let core_id = arch::Arch::core_id();
+pub unsafe fn main(core_id: CoreId) -> ! {
   if core_id == 0 {
     clear_bss();
     board::init();
@@ -76,7 +74,6 @@ pub unsafe fn main() -> ! {
     board::launch_other_cores();
   }
   board::init_per_core();
-
   if core_id == 0 {
     // Note: `arg` is used to start different programs:
     //    0 - fktest: a `fork` test
@@ -89,18 +86,18 @@ pub unsafe fn main() -> ! {
   }
 
   lib::scheduler::schedule();
-  start_first_thread()
+  start_first_thread(core_id)
 }
 
-fn start_first_thread() -> ! {
+fn start_first_thread(core_id: CoreId) -> ! {
   extern {
-    fn pop_context_first(ctx: usize) -> !;
+    fn pop_context_first(ctx: usize, core_id: usize) -> !;
   }
   let t = current_thread().unwrap();
   let lock = t.context();
   let ctx_on_stack = *lock;
   drop(lock);
   unsafe {
-    pop_context_first(&ctx_on_stack as *const _ as usize);
+    pop_context_first(&ctx_on_stack as *const _ as usize, core_id);
   }
 }

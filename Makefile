@@ -20,7 +20,7 @@ aarch64-emu: aarch64
 	qemu-system-aarch64 -M raspi3 -kernel rustpi.aarch64.img -serial null -serial stdio -display none
 
 riscv64-emu: riscv64
-	qemu-system-riscv64 -M virt -m 1024 -bios default -device loader,file=rustpi.riscv64.img,addr=0x80200000 -serial stdio -display none
+	qemu-system-riscv64 -M virt -smp 4 -m 1024 -bios default -device loader,file=rustpi.riscv64.img,addr=0x80200000 -serial stdio -display none
 
 clean:
 	cargo clean

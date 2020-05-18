@@ -57,7 +57,7 @@ dependencies = [
 [[package]]
 name = "riscv"
 version = "0.1.0"
-source = "git+https://github.com/tonnylyz/riscv#4e497b79bdff57002c8edecd65e24439c5863a36"
+source = "git+https://github.com/tonnylyz/riscv#6223a419ba550af3a814da1dfa64d0a1d60980d1"
 dependencies = [
  "register",
 ]

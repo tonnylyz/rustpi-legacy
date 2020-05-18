@@ -1,9 +1,7 @@
 .global push_context
 push_context:
-    csrrw sp, sscratch, sp // save current sp into sscratch
-    bnez  sp, 1f // check if came from `S` mode
-    csrr  sp, sscratch // use `S` mode sp
-1:  addi  sp, sp, -0x110 // size of ContextFrame
+    csrrw sp, sscratch, sp // (sp, sscratch) -> (kernel sp, thread sp)
+    addi  sp, sp, -0x110 // size of ContextFrame
     sd x1, 1 * 8(sp)
     //this x2 is kernel sp
     sd x3, 3 * 8(sp)
@@ -36,7 +34,12 @@ push_context:
     sd x30, 30 * 8(sp)
     sd x31, 31 * 8(sp)
 
-    csrrw s0, sscratch, zero // user's sp (also clear sscratch)
+    addi s0, sp, 0x110
+    // |core_id| <-- sscratch
+    // |-------|
+    // |       |
+    // |__ctx__| <-- sp
+    csrrw s0, sscratch, s0 // s0 <- thread's sp, sscratch <- core_id
     csrr s1, sstatus
     csrr s2, sepc
 
@@ -49,9 +52,14 @@ push_context:
     j pop_context
 
 
-.global pop_context_first // (*ctx on stack)
+.global pop_context_first // pop_context_first(*ctx, core_id)
 pop_context_first:
+    // |core_id| <-- sp + 0x110
+    // |-------|
+    // |       |
+    // |__ctx__| <-- sp
     mv sp, a0
+    sd a1, 0x110(sp)
 pop_context:
     // kernel sp points to bottom of a context frame
     addi s0, sp, 0x110 // size of ContextFrame

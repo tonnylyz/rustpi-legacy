@@ -132,7 +132,6 @@ pub fn init() {
   extern "C" {
     fn push_context();
   }
-  SSCRATCH.set(0);
   STVEC.write(STVEC::BASE.val(push_context as usize as u64 >> 2) + STVEC::MODE::Direct);
   // Note: riscv vector only 4 byte per cause
   //       direct mode make it distributed later in `exception_entry`

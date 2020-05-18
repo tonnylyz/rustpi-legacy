@@ -53,5 +53,5 @@ unsafe fn el1_start() -> ! {
   let core_id = MPIDR_EL1.get() & CORE_MASK;
   super::mmu::init(core_id == BOOT_CORE_ID);
   SP.set(((0x0008_0000 - core_id * 0x0002_0000) as usize).pa2kva() as u64);
-  crate::main();
+  crate::main(core_id as usize);
 }

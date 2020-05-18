@@ -8,7 +8,6 @@ _start:
     mv    t0, a0 // t0 <- hartid
     slli  t0, t0, 17 // t0 <- hartid * 0x20000
     subw  sp, sp, t0
-    csrrw x0, sscratch, a0 // sscratch <- hartid
 
     lui   t0, %hi(KERNEL_PAGE_DIRECTORY)
     addi  t0, t0, %lo(KERNEL_PAGE_DIRECTORY)
@@ -25,6 +24,11 @@ _start:
     or    t0, t0, t1 // mod = 8
     csrw  satp, t0
     sfence.vma
+
+    addi  sp, sp, -16
+    sd    a0, 0(sp)
+    csrrw x0, sscratch, sp // sscratch <- pointer to hart_id
+
     lui   t0, %hi(hart_spin)
     addi  t0, t0, %lo(hart_spin)
     addiw t0, t0, 0

@@ -118,10 +118,9 @@ pub unsafe extern "C" fn init(create_table: bool) {
   }
 
   MAIR_EL1.write(
-    MAIR_EL1::Attr0_HIGH::Memory_OuterWriteBack_NonTransient_ReadAlloc_WriteAlloc
-      + MAIR_EL1::Attr0_LOW_MEMORY::InnerWriteBack_NonTransient_ReadAlloc_WriteAlloc
-      + MAIR_EL1::Attr1_HIGH::Device
-      + MAIR_EL1::Attr1_LOW_DEVICE::Device_nGnRE,
+    MAIR_EL1::Attr0_Normal_Outer::WriteBack_NonTransient_ReadWriteAlloc
+      + MAIR_EL1::Attr0_Normal_Inner::WriteBack_NonTransient_ReadWriteAlloc
+      + MAIR_EL1::Attr1_Device::nonGathering_nonReordering_EarlyWriteAck
   );
   TTBR0_EL1.set(KERNEL_PAGE_TABLES.lvl1.base_addr_u64());
   TTBR1_EL1.set(KERNEL_PAGE_TABLES.lvl1.base_addr_u64());
